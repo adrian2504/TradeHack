@@ -1,5 +1,6 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
+
+import { useParams } from "next/navigation";
 import {
   AUCTIONS,
   MOCK_AGENTS,
@@ -15,40 +16,17 @@ import { useEffect, useMemo, useState } from "react";
 import { AgentProfile, NegotiationRound } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 
-// simple helper for MM:SS display
-function formatTime(seconds: number) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}
-
 export default function AuctionDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const slug = params.auctionId as string;
 
-  const { user, isReady } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // redirect to /login if not logged in
-  useEffect(() => {
-    if (!isReady) return;
-    if (!user) {
-      router.replace("/login");
-    }
-  }, [isReady, user, router]);
-
-  // while loading / redirecting
-  if (!isReady || !user) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center text-sm text-slate-300">
-        Redirecting to login…
-      </div>
-    );
-  }
-
+  // Find auction (may be undefined for bad slug, but hooks still run fine)
   const auction = AUCTIONS.find((a) => a.slug === slug);
 
+  // Scoring weights (used by admin only, but hooks run for everyone)
   const [donationWeight, setDonationWeight] = useState(
     auction?.donationWeight ?? 0.4
   );
@@ -59,24 +37,23 @@ export default function AuctionDetailPage() {
     auction?.fairnessWeight ?? 0.2
   );
 
+  // Negotiation rounds (for timeline / simulation)
   const [rounds, setRounds] = useState<NegotiationRound[]>(MOCK_ROUNDS);
 
-  // ⏱ bidding countdown for clients
-  // for hackathon: fixed 90 seconds; you can later load from auction data
-  const [timeLeft, setTimeLeft] = useState<number>(90);
+  // Simple bidding countdown timer (always defined; UI uses it for client)
+  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes for example
 
   useEffect(() => {
     if (timeLeft <= 0) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    const id = setInterval(() => {
+      setTimeLeft((t) => (t > 0 ? t - 1 : 0));
     }, 1000);
-
-    return () => clearInterval(timer);
+    return () => clearInterval(id);
   }, [timeLeft]);
 
   const biddingClosed = timeLeft <= 0;
 
+  // Compute agents with composite score, sorted
   const agents: AgentProfile[] = useMemo(() => {
     if (!auction) return [];
     const totalWeight = donationWeight + profileWeight + fairnessWeight || 1;
@@ -94,14 +71,6 @@ export default function AuctionDetailPage() {
     })).sort((a, b) => b.compositeScore - a.compositeScore);
   }, [auction, donationWeight, profileWeight, fairnessWeight]);
 
-  if (!auction) {
-    return (
-      <div className="text-sm text-red-400">
-        Auction not found. Please return to the home page.
-      </div>
-    );
-  }
-
   const winner = agents[0];
 
   const handleRunSimulation = () => {
@@ -114,52 +83,64 @@ export default function AuctionDetailPage() {
     );
   };
 
+  // NOTE: this check is AFTER all hooks, and auction doesn't change between renders
+  if (!auction) {
+    return (
+      <div className="text-sm text-red-400">
+        Auction not found. Please return to the home page.
+      </div>
+    );
+  }
+
+  // Helper: format time as mm:ss
+  const minutes = Math.floor(timeLeft / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (timeLeft % 60).toString().padStart(2, "0");
+
   return (
     <div className="flex flex-col gap-5">
-      {/* header: for clients we hide weights using showWeights flag */}
       <AuctionDetailHeader
         auction={auction}
         donationWeight={donationWeight}
         profileWeight={profileWeight}
         fairnessWeight={fairnessWeight}
-        showWeights={isAdmin}
       />
 
-      {/* login + role bar */}
+      {/* Bidding status row */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-        {user ? (
-          <span>
-            Logged in as{" "}
-            <span className="font-semibold text-emerald-300">
-              {user.name} ({user.role})
-            </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px]">
+            {biddingClosed ? "Bidding Closed" : "Bidding Open"}
           </span>
-        ) : (
-          <a
-            href="/login"
-            className="text-emerald-300 underline underline-offset-2"
-          >
-            Login to participate
-          </a>
-        )}
+          {!biddingClosed && (
+            <span className="text-emerald-300">
+              Time left to bid:{" "}
+              <span className="font-semibold">
+                {minutes}:{seconds}
+              </span>
+            </span>
+          )}
+          {biddingClosed && winner && (
+            <span className="text-emerald-300">
+              Winner:{" "}
+              <span className="font-semibold">{winner.name}</span>
+            </span>
+          )}
+        </div>
 
-        {user?.role === "client" && (
-          <button className="rounded-xl bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400">
-            💰 Place Bid
-          </button>
-        )}
-
-        {user?.role === "admin" && (
-          <button className="rounded-xl bg-sky-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-sky-400">
-            🛠 Create Posting
-          </button>
+        {!isAdmin && (
+          <span className="text-[11px] text-slate-400">
+            You can place your bid while the timer is running. AI bidding
+            logic uses your impact profile behind the scenes.
+          </span>
         )}
       </div>
 
-      {/* ADMIN VIEW – full control panel & analytics (unchanged layout) */}
-      {isAdmin && (
-        <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
-          <div className="flex flex-col gap-4">
+      <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
+        {/* LEFT SIDE */}
+        <div className="flex flex-col gap-4">
+          {isAdmin && (
             <ControlPanel
               donationWeight={donationWeight}
               profileWeight={profileWeight}
@@ -169,40 +150,22 @@ export default function AuctionDetailPage() {
               setFairnessWeight={setFairnessWeight}
               onRunSimulation={handleRunSimulation}
             />
-            <AgentTable agents={agents} />
-          </div>
+          )}
 
-          <div className="flex flex-col gap-4">
-            <MetricsPanel auction={auction} winner={winner} />
-            <NegotiationTimeline rounds={rounds} agents={agents} />
-          </div>
+          {/* AI Bidders table is visible to both admin and clients */}
+          <AgentTable agents={agents} />
         </div>
-      )}
 
-      {/* CLIENT VIEW – ONLY bidders table + time left + winner */}
-      {!isAdmin && (
+        {/* RIGHT SIDE */}
         <div className="flex flex-col gap-4">
-          {/* timer bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-xs">
-            <div className="flex items-baseline gap-2">
-              <span className="text-slate-400">Time left to bid:</span>
-              <span className="text-base font-semibold text-emerald-300">
-                {biddingClosed ? "00:00" : formatTime(timeLeft)}
-              </span>
-            </div>
-            <span
-              className={
-                biddingClosed
-                  ? "rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-300"
-                  : "rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-300"
-              }
-            >
-              {biddingClosed ? "Bidding closed" : "Open for bids"}
-            </span>
-          </div>
+          {isAdmin && winner && (
+            <>
+              <MetricsPanel auction={auction} winner={winner} />
+              <NegotiationTimeline rounds={rounds} agents={agents} />
+            </>
+          )}
 
-          {/* winner card – ONLY when time is over */}
-          {biddingClosed && winner && (
+          {!isAdmin && winner && biddingClosed && (
             <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-xs">
               <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
                 Winning Bidder
@@ -218,12 +181,8 @@ export default function AuctionDetailPage() {
               </p>
             </section>
           )}
-
-
-          {/* AI bidders table – always visible to clients */}
-          <AgentTable agents={agents} />
         </div>
-      )}
+      </div>
     </div>
   );
 }
