@@ -4,5 +4,4 @@ node_modules/
 .next/
 dist/
 build/
-.DS_Store
-.env
+.DS_Store   
