@@ -4,8 +4,6 @@ import json
 from typing import List, Dict, Any, Tuple, Optional
 
 from dotenv import load_dotenv
-
-# Try to import Gemini SDK
 try:
     from google import genai
 except ImportError:
@@ -26,12 +24,6 @@ def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
-    """
-    Try to robustly extract a JSON object from a model response.
-    - Strips markdown code fences if present.
-    - Finds the first '{' and last '}' and parses that substring.
-    Raises ValueError if parsing fails.
-    """
     cleaned = text.strip()
 
     if cleaned.startswith("```"):
