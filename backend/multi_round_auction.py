@@ -1,24 +1,9 @@
-"""
-Multi-round AI auction on top of auction_core.
-
-Each participant:
-- Has start_bid and max_bid (true ceiling).
-- Raises their current_bid over several rounds.
-- At each round, we call auction_core.rank_profiles(), but we treat
-  current_bid as the "max_bid" field used for money score.
-
-Social scores come from auction_core (Gemini or rule-based).
-"""
-
 from __future__ import annotations
 
 from typing import List, Dict, Any, Optional
 import copy
 
-from auction_core import rank_profiles  # reuse existing logic
-
-
-# ---------- Types ----------
+from auction_core import rank_profiles
 
 Profile = Dict[str, Any]
 
@@ -61,8 +46,6 @@ class MultiRoundAuctionResult:
         }
 
 
-# ---------- Internal helpers ----------
-
 def _init_agent_state(profiles: List[Profile]) -> List[Dict[str, Any]]:
     """
     Prepare internal state for each agent:
@@ -72,13 +55,11 @@ def _init_agent_state(profiles: List[Profile]) -> List[Dict[str, Any]]:
     """
     state = []
     for p in profiles:
-        # Defensive copy so we never mutate caller data
         prof = copy.deepcopy(p)
 
         start_bid = float(prof.get("start_bid", 0.0))
         max_bid = float(prof.get("max_bid", 0.0))
 
-        # Safety: if start_bid > max_bid, clamp
         if start_bid > max_bid:
             start_bid, max_bid = max_bid, max_bid
 
@@ -87,7 +68,7 @@ def _init_agent_state(profiles: List[Profile]) -> List[Dict[str, Any]]:
                 "profile": prof,
                 "current_bid": start_bid,
                 "true_max_bid": max_bid,
-                "history": [],  # we can store per-round info later if needed
+                "history": [],
             }
         )
     return state
@@ -99,15 +80,7 @@ def _apply_bidding_strategy(
     round_index: int,
     total_rounds: int,
 ):
-    """
-    Simple rule-based bidding strategy for each round.
 
-    Idea:
-    - Agents further down the ranking get more aggressive.
-    - Agents closer to the top increase their bid more slowly.
-    - No one can exceed true_max_bid.
-    """
-    # Map name -> rank index for last round (0 = best)
     rank_index_by_name = {}
     if last_round_ranking is not None:
         for idx, entry in enumerate(last_round_ranking):
@@ -123,33 +96,24 @@ def _apply_bidding_strategy(
         if true_max <= 0:
             continue
 
-        # If we have ranking from last round, use it; otherwise assume middle
         if name in rank_index_by_name:
-            position = rank_index_by_name[name]  # 0 is best
+            position = rank_index_by_name[name]
         else:
             position = num_agents // 2
-
-        # Normalize "loser-ness": 0 for best, 1 for worst
         if num_agents > 1:
             loser_factor = position / (num_agents - 1)
         else:
             loser_factor = 0.0
 
-        # Remaining room to raise
         remaining = max(0.0, true_max - current_bid)
         if remaining <= 0:
             continue
 
-        # How many rounds are left (including this one)
         rounds_left = max(1, total_rounds - round_index)
 
-        # Base raise is proportion of remaining, scaled by loser_factor
-        # More behind -> higher loser_factor -> raise more
-        base_fraction = 0.4  # how aggressive overall
+        base_fraction = 0.4
         raise_fraction = base_fraction * (0.3 + 0.7 * loser_factor)
         planned_raise = remaining * raise_fraction
-
-        # Also ensure we don't try to spend all remaining in one go
         planned_raise = min(planned_raise, remaining / rounds_left)
 
         new_bid = current_bid + planned_raise
@@ -160,12 +124,6 @@ def _apply_bidding_strategy(
 
 
 def _profiles_for_round(agents_state: List[Dict[str, Any]]) -> List[Profile]:
-    """
-    For each agent, generate a profile for this round:
-    - We reuse all original fields
-    - We set both start_bid and max_bid equal to current_bid
-      so auction_core's money_score uses current_bid as the value.
-    """
     round_profiles: List[Profile] = []
     for agent in agents_state:
         prof = copy.deepcopy(agent["profile"])
@@ -175,26 +133,12 @@ def _profiles_for_round(agents_state: List[Dict[str, Any]]) -> List[Profile]:
         round_profiles.append(prof)
     return round_profiles
 
-
-# ---------- Main function: Multi-round auction ----------
-
 def run_multi_round_auction(
     profiles: List[Profile],
     num_rounds: int = 3,
     use_gemini_social: bool = True,
 ) -> MultiRoundAuctionResult:
-    """
-    Run a multi-round auction:
-    - Preload agents with start_bid and true_max_bid.
-    - Each round:
-        * Convert internal state to "round profiles"
-        * Call auction_core.rank_profiles() to get ranking + winner
-        * Store results
-        * Update current_bid for next round using strategy
 
-    Returns:
-        MultiRoundAuctionResult with per-round details and final winner.
-    """
     if num_rounds < 1:
         raise ValueError("num_rounds must be >= 1")
     if not profiles:
@@ -208,11 +152,7 @@ def run_multi_round_auction(
 
     for r in range(num_rounds):
         round_index = r + 1
-
-        # Prepare profiles for this round where money = current_bid
         round_profiles = _profiles_for_round(agents_state)
-
-        # Call original single-round logic
         result = rank_profiles(
             profiles=round_profiles,
             use_gemini=use_gemini_social,
@@ -222,8 +162,6 @@ def run_multi_round_auction(
 
         round_winner = result["winner"]
         round_ranking = result["ranking"]
-
-        # Save round info
         rounds.append(
             AuctionRoundResult(
                 round_index=round_index,
@@ -231,10 +169,8 @@ def run_multi_round_auction(
                 winner=round_winner,
             )
         )
-        final_winner = round_winner  # last round winner becomes final by default
+        final_winner = round_winner
         last_ranking = round_ranking
-
-        # Update bidding strategy for next round (except after final round)
         if round_index < num_rounds:
             _apply_bidding_strategy(
                 agents_state=agents_state,
@@ -249,8 +185,6 @@ def run_multi_round_auction(
         social_mode=social_mode_used or ("gemini" if use_gemini_social else "rule-based"),
     )
 
-
-# ---------- CLI demo ----------
 
 if __name__ == "__main__":
     demo_profiles: List[Profile] = [
