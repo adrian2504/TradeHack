@@ -3,10 +3,8 @@ from typing import List, Any, Dict
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from auction_core import rank_profiles  # import your logic
+from auction_core import rank_profiles
 
-
-# ---------- Pydantic models for request/response ----------
 
 class Profile(BaseModel):
     name: str
@@ -19,7 +17,7 @@ class Profile(BaseModel):
 
 class AuctionRequest(BaseModel):
     profiles: List[Profile]
-    use_gemini: bool = True  # allow toggling AI scoring if needed
+    use_gemini: bool = True
 
 
 class RankedProfile(BaseModel):
@@ -35,9 +33,6 @@ class AuctionResponse(BaseModel):
     social_mode: str
     winner: RankedProfile
     ranking: List[RankedProfile]
-
-
-# ---------- FastAPI app ----------
 
 app = FastAPI(title="AI Social Auction API")
 
@@ -57,7 +52,6 @@ def run_auction(req: AuctionRequest):
         use_gemini=req.use_gemini,
     )
 
-    # FastAPI will auto-coerce dicts into the response_model
     return {
         "social_mode": result["social_mode"],
         "winner": result["winner"],
