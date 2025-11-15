@@ -9,10 +9,13 @@ import MetricsPanel from "@/components/MetricsPanel";
 import NegotiationTimeline from "@/components/NegotiationTimeline";
 import { useMemo, useState } from "react";
 import { AgentProfile, NegotiationRound } from "@/types";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function AuctionDetailPage() {
   const params = useParams();
   const slug = params.auctionId as string;
+  const { user } = useAuth();
+
 
   const auction = AUCTIONS.find((a) => a.slug === slug);
 
@@ -73,6 +76,39 @@ export default function AuctionDetailPage() {
         profileWeight={profileWeight}
         fairnessWeight={fairnessWeight}
       />
+      
+       {/* NEW AUTH UI SECTION */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+        {user ? (
+          <span>
+            Logged in as{" "}
+            <span className="font-semibold text-emerald-300">
+              {user.name} ({user.role})
+            </span>
+          </span>
+        ) : (
+          <a
+            href="/login"
+            className="text-emerald-300 underline underline-offset-2"
+          >
+            Login to participate
+          </a>
+        )}
+
+        {user?.role === "client" && (
+          <button className="rounded-xl bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400">
+            💰 Place Bid
+          </button>
+        )}
+
+        {user?.role === "admin" && (
+          <button className="rounded-xl bg-sky-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-sky-400">
+            🛠 Create Posting
+          </button>
+        )}
+      </div>
+      {/* END AUTH UI SECTION */}
+
 
       <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
         <div className="flex flex-col gap-4">
