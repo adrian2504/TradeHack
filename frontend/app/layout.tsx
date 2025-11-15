@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Link from "next/link";
 import { AuthProvider } from "@/components/AuthProvider";
+import HeaderUserStatus from "@/components/HeaderUserStatus";
 
 export const metadata: Metadata = {
   title: "AgentBazaar – Fairness-Aware AI Auctions",
@@ -38,12 +38,7 @@ export default function RootLayout({
                 <span className="rounded-full bg-slate-900 px-3 py-1 text-xs text-slate-400">
                   Hackathon Edition
                 </span>
-                <Link
-                  href="/login"
-                  className="rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
-                >
-                  Login
-                </Link>
+                <HeaderUserStatus />
               </div>
             </header>
 
