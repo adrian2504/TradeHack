@@ -47,12 +47,6 @@ class MultiRoundAuctionResult:
 
 
 def _init_agent_state(profiles: List[Profile]) -> List[Dict[str, Any]]:
-    """
-    Prepare internal state for each agent:
-    - Keep original profile
-    - Track current_bid (starts at start_bid)
-    - Track true_max_bid (from profile["max_bid"])
-    """
     state = []
     for p in profiles:
         prof = copy.deepcopy(p)
