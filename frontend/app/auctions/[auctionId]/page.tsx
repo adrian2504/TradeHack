@@ -1,6 +1,5 @@
 "use client";
-
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   AUCTIONS,
   MOCK_AGENTS,
@@ -25,9 +24,28 @@ function formatTime(seconds: number) {
 
 export default function AuctionDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.auctionId as string;
-  const { user } = useAuth();
+
+  const { user, isReady } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  // redirect to /login if not logged in
+  useEffect(() => {
+    if (!isReady) return;
+    if (!user) {
+      router.replace("/login");
+    }
+  }, [isReady, user, router]);
+
+  // while loading / redirecting
+  if (!isReady || !user) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center text-sm text-slate-300">
+        Redirecting to login…
+      </div>
+    );
+  }
 
   const auction = AUCTIONS.find((a) => a.slug === slug);
 

@@ -20,14 +20,16 @@ type AuthContextValue = {
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  isReady: boolean; // ✅ NEW
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isReady, setIsReady] = useState(false); // ✅ NEW
 
-  // load from localStorage so refresh keeps you logged in
+  // Load user from localStorage once on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem("agentbazaar_user");
@@ -36,6 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // ignore
+    } finally {
+      setIsReady(true); // ✅ mark as ready whether or not we found a user
     }
   }, []);
 
@@ -58,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isReady }}>
       {children}
     </AuthContext.Provider>
   );
