@@ -3,9 +3,12 @@
 import { AUCTIONS } from "@/lib/auctions";
 import AuctionGrid from "@/components/AuctionGrid";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function HomePage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   return (
     <section className="flex flex-col gap-6">
@@ -22,6 +25,8 @@ export default function HomePage() {
       <AuctionGrid
         auctions={AUCTIONS}
         onSelect={(auction) => router.push(`/auctions/${auction.slug}`)}
+        // only admins see scoring mix; clients + logged-out do not
+        showScoringMix={isAdmin}
       />
     </section>
   );
