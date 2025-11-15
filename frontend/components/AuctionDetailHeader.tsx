@@ -5,7 +5,6 @@ type Props = {
   donationWeight: number;
   profileWeight: number;
   fairnessWeight: number;
-  // when false, clients won't see the "Current Scoring Weights" box
   showWeights?: boolean;
 };
 

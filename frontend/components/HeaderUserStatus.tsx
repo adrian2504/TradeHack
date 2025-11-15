@@ -14,10 +14,8 @@ export default function HeaderUserStatus() {
     router.replace("/login");
   };
 
-  // Hide UI on login page if not authenticated
   if (!user && pathname === "/login") return null;
 
-  // Show login button if not logged in (but not on login page)
   if (!user) {
     return (
       <Link
@@ -37,7 +35,6 @@ export default function HeaderUserStatus() {
       className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-700"
     >
       {isAdmin ? (
-        // 👑 Crown icon for Admin
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className="h-5 w-5 text-yellow-400"
@@ -47,7 +44,6 @@ export default function HeaderUserStatus() {
           <path d="M3 6l4 4 5-7 5 7 4-4v12H3z" />
         </svg>
       ) : (
-        // 👤 Clean avatar icon for Client
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className="h-5 w-5 text-blue-300"

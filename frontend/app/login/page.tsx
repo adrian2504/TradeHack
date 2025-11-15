@@ -12,7 +12,6 @@ type ClientAccount = {
 
 const CLIENTS_KEY = "agentbazaar_clients";
 
-// Hardcoded admin credentials (for hackathon demo)
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "admin123";
 
@@ -30,7 +29,6 @@ function saveClients(clients: ClientAccount[]) {
   try {
     localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
   } catch {
-    // ignore
   }
 }
 
@@ -38,23 +36,19 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
-  // only two tabs now: client + admin
   const [mode, setMode] = useState<"client" | "admin">("client");
 
-  // client fields
-  const [clientIsNew, setClientIsNew] = useState(false); // "New user? Sign up"
+  const [clientIsNew, setClientIsNew] = useState(false); 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [clientPassword, setClientPassword] = useState("");
   const [clientPasswordConfirm, setClientPasswordConfirm] = useState("");
 
-  // admin fields
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
 
-  // clear some fields & error when switching between client/admin
   useEffect(() => {
     setError(null);
     setClientPassword("");
@@ -74,7 +68,6 @@ export default function LoginPage() {
     const clients = loadClients();
 
     if (!clientIsNew) {
-      // 🔹 Existing client login
       const existing = clients.find(
         (c) => c.email.toLowerCase() === email.toLowerCase()
       );
@@ -92,7 +85,6 @@ export default function LoginPage() {
 
       router.push("/home");
     } else {
-      // 🔹 New client signup
       if (!name.trim()) {
         setError("Please enter your full name.");
         return;
@@ -161,7 +153,6 @@ export default function LoginPage() {
         Clients can login or create a new account. Admins use their assigned credentials.
       </p>
 
-      {/* Tabs: Client / Admin */}
       <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/80 p-1 text-[11px] font-semibold text-slate-300">
         <button
           type="button"
@@ -187,17 +178,14 @@ export default function LoginPage() {
         </button>
       </div>
 
-      {/* Error message */}
       {error && (
         <div className="mt-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">
           {error}
         </div>
       )}
 
-      {/* CLIENT TAB */}
       {mode === "client" && (
         <form onSubmit={handleClientSubmit} className="mt-4 space-y-4 text-sm">
-          {/* toggle: login vs signup, but same tab */}
           <label className="flex items-center gap-2 text-[11px] text-slate-300">
             <input
               type="checkbox"
@@ -270,7 +258,6 @@ export default function LoginPage() {
         </form>
       )}
 
-      {/* ADMIN TAB */}
       {mode === "admin" && (
         <form onSubmit={handleAdminLogin} className="mt-4 space-y-4 text-sm">
           <div className="space-y-1">

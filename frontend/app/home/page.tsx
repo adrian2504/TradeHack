@@ -25,7 +25,6 @@ export default function HomePage() {
       <AuctionGrid
         auctions={AUCTIONS}
         onSelect={(auction) => router.push(`/auctions/${auction.slug}`)}
-        // admins see scoring mix, clients do not
         showScoringMix={isAdmin}
       />
     </section>

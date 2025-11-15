@@ -23,10 +23,8 @@ export default function AuctionDetailPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // Find auction (may be undefined for bad slug, but hooks still run fine)
   const auction = AUCTIONS.find((a) => a.slug === slug);
 
-  // Scoring weights (used by admin only, but hooks run for everyone)
   const [donationWeight, setDonationWeight] = useState(
     auction?.donationWeight ?? 0.4
   );
@@ -37,12 +35,9 @@ export default function AuctionDetailPage() {
     auction?.fairnessWeight ?? 0.2
   );
 
-  // Negotiation rounds (for timeline / simulation)
   const [rounds, setRounds] = useState<NegotiationRound[]>(MOCK_ROUNDS);
 
-  // Simple bidding countdown timer (always defined; UI uses it for client)
-  const [timeLeft, setTimeLeft] = useState(180); // 3 minutes for example
-
+  const [timeLeft, setTimeLeft] = useState(180); 
   useEffect(() => {
     if (timeLeft <= 0) return;
     const id = setInterval(() => {
@@ -53,7 +48,6 @@ export default function AuctionDetailPage() {
 
   const biddingClosed = timeLeft <= 0;
 
-  // Compute agents with composite score, sorted
   const agents: AgentProfile[] = useMemo(() => {
     if (!auction) return [];
     const totalWeight = donationWeight + profileWeight + fairnessWeight || 1;
@@ -83,7 +77,6 @@ export default function AuctionDetailPage() {
     );
   };
 
-  // NOTE: this check is AFTER all hooks, and auction doesn't change between renders
   if (!auction) {
     return (
       <div className="text-sm text-red-400">
@@ -92,7 +85,6 @@ export default function AuctionDetailPage() {
     );
   }
 
-  // Helper: format time as mm:ss
   const minutes = Math.floor(timeLeft / 60)
     .toString()
     .padStart(2, "0");
@@ -107,7 +99,6 @@ export default function AuctionDetailPage() {
         fairnessWeight={fairnessWeight}
       />
 
-      {/* Bidding status row */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px]">
@@ -138,7 +129,6 @@ export default function AuctionDetailPage() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
-        {/* LEFT SIDE */}
         <div className="flex flex-col gap-4">
           {isAdmin && (
             <ControlPanel
@@ -151,12 +141,9 @@ export default function AuctionDetailPage() {
               onRunSimulation={handleRunSimulation}
             />
           )}
-
-          {/* AI Bidders table is visible to both admin and clients */}
           <AgentTable agents={agents} />
         </div>
 
-        {/* RIGHT SIDE */}
         <div className="flex flex-col gap-4">
           {isAdmin && winner && (
             <>

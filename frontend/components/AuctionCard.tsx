@@ -41,7 +41,6 @@ export default function AuctionCard({ auction, showScoringMix = true }: Props) {
         {auction.description}
       </p>
 
-      {/* scoring mix: only show when showScoringMix is true (admins) */}
       {showScoringMix && (
         <div className="mt-3 rounded-xl bg-slate-900/80 p-3 text-[11px] text-slate-300">
           <div className="mb-1 font-semibold text-slate-200">
