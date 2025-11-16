@@ -1,8 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-# --- 1. Bidder Profile Model ---
-# This matches the structure of the dictionaries in your 'profiles_demo'
 class BidderProfile(BaseModel):
     """
     Defines the data required for a single bidder's profile.
@@ -15,8 +13,6 @@ class BidderProfile(BaseModel):
     profession: str
     social_contribution: str
 
-# --- 2. Auction Request Model ---
-# This is what the frontend will send to our API endpoint
 class AuctionRequest(BaseModel):
     """
     The JSON body sent from the frontend to the /run-auction endpoint.
@@ -35,9 +31,6 @@ class AuctionRequest(BaseModel):
     # A toggle to use Gemini or not
     use_gemini: bool = True
 
-# --- 3. Auction Result Models ---
-# These models match the structure of the dictionary returned 
-# by your 'rank_profiles' function.
 
 class AuctionRankItem(BaseModel):
     """
