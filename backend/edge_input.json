@@ -1,12 +1,12 @@
 {
-  "social_mode": "gemini",
+  "social_mode": "rule-based",
   "final_winner": {
     "name": "Random Investor",
-    "final_score": 0.916,
-    "money_score": 1.0,
-    "social_score": 0.88,
+    "final_score": 0.755,
+    "money_score": 1,
+    "social_score": 0.65,
     "bid": 62591.02,
-    "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+    "social_reason": "Rule-based: profession + keywords + donation amount."
   },
   "rounds": [
     {
@@ -14,36 +14,36 @@
       "ranking": [
         {
           "name": "Random Investor",
-          "final_score": 0.93,
-          "money_score": 1.0,
-          "social_score": 0.9,
-          "bid": 20000.0,
-          "social_reason": "The investor made significant positive contributions by funding climate-tech startups and supporting education for girls. These actions directly address environmental improvement and empower a vulnerable group, aligning strongly with positive social impact criteria."
+          "final_score": 0.755,
+          "money_score": 1,
+          "social_score": 0.65,
+          "bid": 20000,
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Adrian Dsouza",
-          "final_score": 0.7,
-          "money_score": 0.0,
-          "social_score": 1.0,
-          "bid": 400.0,
-          "social_reason": "Adrian Dsouza demonstrates strong ethical alignment and positive social impact by fighting for women's rights and donating to hungry children. These actions directly support vulnerable groups and human rights, aligning perfectly with the scoring criteria."
+          "final_score": 0.665,
+          "money_score": 0,
+          "social_score": 0.95,
+          "bid": 400,
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Charles Dsouza",
-          "final_score": 0.357,
+          "final_score": 0.427,
           "money_score": 0.49,
-          "social_score": 0.3,
-          "bid": 10000.0,
-          "social_reason": "His primary profession as a tobacco factory owner is explicitly deemed harmful, significantly lowering his score due to its negative public health impact. While the $1000 donation for tree planting is a positive environmental contribution, it does not sufficiently offset the systemic harm from his core business."
+          "social_score": 0.4,
+          "bid": 10000,
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         }
       ],
       "winner": {
         "name": "Random Investor",
-        "final_score": 0.93,
-        "money_score": 1.0,
-        "social_score": 0.9,
-        "bid": 20000.0,
-        "social_reason": "The investor made significant positive contributions by funding climate-tech startups and supporting education for girls. These actions directly address environmental improvement and empower a vulnerable group, aligning strongly with positive social impact criteria."
+        "final_score": 0.755,
+        "money_score": 1,
+        "social_score": 0.65,
+        "bid": 20000,
+        "social_reason": "Rule-based: profession + keywords + donation amount."
       }
     },
     {
@@ -51,36 +51,36 @@
       "ranking": [
         {
           "name": "Random Investor",
-          "final_score": 0.93,
-          "money_score": 1.0,
-          "social_score": 0.9,
+          "final_score": 0.755,
+          "money_score": 1,
+          "social_score": 0.65,
           "bid": 41664.75,
-          "social_reason": "The investor shows strong positive social impact through investments in climate technology, contributing to environmental sustainability. Sponsoring a coding school for girls further aligns with ethical principles by supporting education and empowering a vulnerable group. These direct, impactful contributions significantly elevate the score."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Adrian Dsouza",
           "final_score": 0.665,
-          "money_score": 0.0,
+          "money_score": 0,
           "social_score": 0.95,
           "bid": 4099.42,
-          "social_reason": "Adrian's profession as a human rights lawyer is highly ethically aligned. Their contributions directly support vulnerable children and women, demonstrating significant positive social impact through both financial aid and direct advocacy for human rights."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Charles Dsouza",
-          "final_score": 0.162,
+          "final_score": 0.407,
           "money_score": 0.422,
-          "social_score": 0.05,
+          "social_score": 0.4,
           "bid": 19940.06,
-          "social_reason": "His primary profession as a tobacco factory owner contributes to a harmful industry with widespread negative public health impacts. While his $1000 donation for tree planting is a positive environmental contribution, it is overshadowed by the ethical concerns and scale of harm associated with his core business."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         }
       ],
       "winner": {
         "name": "Random Investor",
-        "final_score": 0.93,
-        "money_score": 1.0,
-        "social_score": 0.9,
+        "final_score": 0.755,
+        "money_score": 1,
+        "social_score": 0.65,
         "bid": 41664.75,
-        "social_reason": "The investor shows strong positive social impact through investments in climate technology, contributing to environmental sustainability. Sponsoring a coding school for girls further aligns with ethical principles by supporting education and empowering a vulnerable group. These direct, impactful contributions significantly elevate the score."
+        "social_reason": "Rule-based: profession + keywords + donation amount."
       }
     },
     {
@@ -88,37 +88,120 @@
       "ranking": [
         {
           "name": "Random Investor",
-          "final_score": 0.916,
-          "money_score": 1.0,
-          "social_score": 0.88,
+          "final_score": 0.755,
+          "money_score": 1,
+          "social_score": 0.65,
           "bid": 62591.02,
-          "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Adrian Dsouza",
           "final_score": 0.665,
-          "money_score": 0.0,
+          "money_score": 0,
           "social_score": 0.95,
           "bid": 6425.91,
-          "social_reason": "Adrian's profession as a human rights lawyer, coupled with his donation for hungry children and advocacy for women's rights in court, demonstrates strong ethical alignment and significant positive social impact, directly supporting vulnerable groups and human rights."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         },
         {
           "name": "Charles Dsouza",
-          "final_score": 0.171,
+          "final_score": 0.416,
           "money_score": 0.453,
-          "social_score": 0.05,
+          "social_score": 0.4,
           "bid": 31887.04,
-          "social_reason": "As a tobacco factory owner, Charles Dsouza's profession is inherently harmful and ethically misaligned, causing widespread negative social impact. While his $1000 donation for planting trees is a positive environmental contribution, its beneficial impact is significantly outweighed by the immense harm perpetuated by his core business."
+          "social_reason": "Rule-based: profession + keywords + donation amount."
         }
       ],
       "winner": {
         "name": "Random Investor",
-        "final_score": 0.916,
-        "money_score": 1.0,
-        "social_score": 0.88,
+        "final_score": 0.755,
+        "money_score": 1,
+        "social_score": 0.65,
         "bid": 62591.02,
-        "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+        "social_reason": "Rule-based: profession + keywords + donation amount."
       }
+    }
+  ],
+  "users": [
+    {
+      "id": "user-1763290716377-jo3ine",
+      "name": "ert",
+      "email": "ert@gmail.com",
+      "role": "client",
+      "passwordHash": "$2b$10$FJwyrMnOtmUFaZribWL1ReUgQiXngBkyGpXWa9hJZNgeqZ5KR7gOy"
+    },
+    {
+      "id": "admin",
+      "name": "Admin",
+      "email": "admin@gmail.com",
+      "role": "admin",
+      "passwordHash": "$2b$10$.ec8k9VgC6p0nPXLCcP2QewwKSIvoySR0jOAmQJ.ivcVMaS7fnVAm"
+    },
+    {
+      "id": "user-1763291017280-jvn77s",
+      "name": "bokachoda",
+      "email": "boka@gmail.com",
+      "role": "client",
+      "passwordHash": "$2b$10$rR4oE7H2WYuTC2YG6VJQMuJH85L5GU0/N.zPni8wTjINddq1FWyFy"
+    },
+    {
+      "id": "user-1763291238695-5zvojw",
+      "name": "uty",
+      "email": "uty@gmail.com",
+      "role": "client",
+      "passwordHash": "$2b$10$VkZwFlBuJvPUUfslYhD6/OledkpESlqWvDN.q8NBdJa/oHGPQrFMi"
+    }
+  ],
+  "agents": [
+    {
+      "id": "user-1763290716377-jo3ine",
+      "name": "ert",
+      "email": "ert@gmail.com",
+      "avatarInitials": "E",
+      "affiliation": "Client Bidder",
+      "donationAmount": 0,
+      "philanthropyScore": 70,
+      "socialImpactScore": 70,
+      "fairnessScore": 70,
+      "compositeScore": 0,
+      "strategy": "client"
+    },
+    {
+      "id": "user-1763291017280-jvn77s",
+      "name": "bokachoda",
+      "email": "boka@gmail.com",
+      "avatarInitials": "B",
+      "affiliation": "Client Bidder",
+      "donationAmount": 0,
+      "philanthropyScore": 70,
+      "socialImpactScore": 70,
+      "fairnessScore": 70,
+      "compositeScore": 0,
+      "strategy": "client"
+    },
+    {
+      "id": "user-1763291238695-5zvojw",
+      "name": "uty",
+      "email": "uty@gmail.com",
+      "avatarInitials": "U",
+      "affiliation": "Client Bidder",
+      "donationAmount": 0,
+      "philanthropyScore": 70,
+      "socialImpactScore": 70,
+      "fairnessScore": 70,
+      "compositeScore": 0,
+      "strategy": "client"
+    },
+    {
+      "id": "client-bidder",
+      "name": "Client Bidder",
+      "avatarInitials": "CB",
+      "affiliation": "Client Bidder",
+      "donationAmount": 34534347311649,
+      "philanthropyScore": 80,
+      "socialImpactScore": 50,
+      "fairnessScore": 70,
+      "compositeScore": 0,
+      "strategy": "client"
     }
   ]
 }

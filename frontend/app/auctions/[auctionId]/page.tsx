@@ -1,27 +1,38 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import {
-  AUCTIONS,
-} from "@/lib/auctions";
+import { useEffect, useMemo, useState } from "react";
+import Confetti from "react-confetti";
+
+import { AUCTIONS, computeCompositeScore } from "@/lib/auctions";
 import AuctionDetailHeader from "@/components/AuctionDetailHeader";
 import AgentTable from "@/components/AgentTable";
 import ControlPanel from "@/components/ControlPanel";
 import MetricsPanel from "@/components/MetricsPanel";
 import NegotiationTimeline from "@/components/NegotiationTimeline";
-import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabaseServer";
-import {AgentProfile, AuctionTheme, NegotiationRound} from "@/types";
-import { computeCompositeScore } from "@/lib/auctions";
+import { AgentProfile, AuctionTheme, NegotiationRound } from "@/types";
+import { fetchLatestAgentsFromBackend } from "@/lib/api";
+
+function ensureAgentShape(agent: AgentProfile): AgentProfile & { donation: number } {
+  const donationAmount =
+    (agent as any).donationAmount ?? (agent as any).donation ?? 0;
+
+  return {
+    ...agent,
+    donationAmount,
+    // @ts-ignore
+    donation: donationAmount,
+  } as AgentProfile & { donation: number };
+}
 
 export default function AuctionDetailPage() {
   const params = useParams();
   const slug = params.auctionId as string;
 
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin =
+    !!user && (user.role === "admin" || user.email === "admin@gmail.com");
 
   const auction = AUCTIONS.find((a) => a.slug === slug);
 
@@ -35,379 +46,333 @@ export default function AuctionDetailPage() {
     auction?.fairnessWeight ?? 0.2
   );
 
-  // No more MOCK_ROUNDS — admin uses this only for timeline visualization
-  const [rounds, setRounds] = useState<NegotiationRound[]>([]);
+  const [backendAgents, setBackendAgents] = useState<AgentProfile[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Timer
-  const [timeLeft, setTimeLeft] = useState(180);
+  const [rounds, setRounds] = useState<NegotiationRound[]>([]);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const [bidAmountInput, setBidAmountInput] = useState<string>("");
+
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [auctionClosed, setAuctionClosed] = useState(false);
+  const [hasAutoSimulated, setHasAutoSimulated] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Load agents from backend JSON (Gemini + clients)
+  // ---------------------------------------------------------------------------
+  async function reloadAgents() {
+    if (!auction) return;
+    setLoadingAgents(true);
+    setError(null);
+
+    try {
+      const agents = await fetchLatestAgentsFromBackend();
+      const normalized = agents.map((a) => ensureAgentShape(a));
+      setBackendAgents(normalized);
+    } catch (err) {
+      console.error("Failed to load agents from backend:", err);
+      setError("Failed to load agents from backend.");
+    } finally {
+      setLoadingAgents(false);
+    }
+  }
+
   useEffect(() => {
-    if (timeLeft <= 0) return;
+    reloadAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, auction]);
+
+  // ---------------------------------------------------------------------------
+  // Timer: counts down from 30s after first bid
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+
     const id = setInterval(() => {
-      setTimeLeft((t) => (t > 0 ? t - 1 : 0));
+      setTimeLeft((prev) => (prev === null ? prev : prev - 1));
     }, 1000);
+
     return () => clearInterval(id);
   }, [timeLeft]);
 
-  // when a client logs in, create a dedicated bidder row for them (if not already present)
-  useEffect(() => {
-    if (!user || user.role !== "client") return;
-
-    setClientAgents((prev) => {
-      if (prev.some((a) => a.clientName === user.name)) return prev;
-
-      const newId = `client-${prev.length + 1}`;
-
-      const newAgent = {
-        id: newId,
-        name: user.name,
-        displayName: user.name,
-        clientName: user.name,
-        organization: "Individual Donor",
-        donation: 0,
-        profileScore: 80,
-        fairnessScore: 80,
-      };
-
-      return [...prev, newAgent];
-    });
-  }, [user]);
-
-  // base agents = static AI bidders + all client-created bidders
-  const baseAgents = useMemo(
-    () => [...MOCK_AGENTS, ...clientAgents],
-    [clientAgents]
-  );
-
-  // Which agent row belongs to the currently logged-in client?
-  const clientAgent = useMemo(() => {
-    if (!user || user.role !== "client") return null;
-    return clientAgents.find((a) => a.clientName === user.name) ?? null;
-  }, [user, clientAgents]);
-
-  // Real agents from database
-  const [agents, setAgents] = useState<AgentProfile[]>([]);
-  const [winner, setWinner] = useState<AgentProfile | undefined>();
-
-  // Poll state from DB
-  useEffect(() => {
-    if (!auction) return;
-
-    const auctionId = auction.id;
-
-    const fetchState = async () => {
-      const res = await fetch(`/api/auctions/${auctionId}/bids`);
-      if (!res.ok) return;
-      const data = await res.json();
-
-      setAgents(data.agents);
-
-      if (data.winner) {
-        const found = data.agents.find(
-          (a: AgentProfile) => a.id === data.winner.id
-        );
-        if (found) setWinner(found);
-      }
+  // ---------------------------------------------------------------------------
+  // Combine agents & apply current weights
+  // ---------------------------------------------------------------------------
+  const auctionWithWeights: AuctionTheme | null = useMemo(() => {
+    if (!auction) return null;
+    return {
+      ...auction,
+      donationWeight,
+      profileWeight,
+      fairnessWeight,
     };
+  }, [auction, donationWeight, profileWeight, fairnessWeight]);
 
-    fetchState();
-    const id = setInterval(fetchState, 2000);
-    return () => clearInterval(id);
-  }, [auction]);
+  const allAgents: (AgentProfile & { donation?: number })[] = useMemo(() => {
+    const normalizedBackend = backendAgents.map((a) => ensureAgentShape(a));
+    return [...normalizedBackend];
+  }, [backendAgents]);
 
-  // Bidding input
-  const [myBid, setMyBid] = useState(0);
-  const [bidError, setBidError] = useState<string | null>(null);
+  const scoredAgents: (AgentProfile & { donation?: number })[] = useMemo(() => {
+    if (!auctionWithWeights) return allAgents;
 
-  const handlePlaceBid = async () => {
-    if (!user) {
-      setBidError("Please login first.");
-      return;
+    return allAgents
+      .map((agent) => {
+        const normalized = ensureAgentShape(agent);
+        return {
+          ...normalized,
+          compositeScore: computeCompositeScore(normalized, auctionWithWeights),
+        };
+      })
+      .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
+  }, [allAgents, auctionWithWeights]);
+
+  const winner: AgentProfile | undefined = useMemo(() => {
+    if (!winnerId) return undefined;
+    return scoredAgents.find((a) => a.id === winnerId);
+  }, [winnerId, scoredAgents]);
+
+  // ---------------------------------------------------------------------------
+  // Simulation: admin or timer triggers rounds + winner selection
+  // ---------------------------------------------------------------------------
+  function runSimulationNow(
+    currentScoredAgents: (AgentProfile & { donation?: number })[],
+    currentAuction: AuctionTheme | null
+  ) {
+    if (!currentAuction || currentScoredAgents.length === 0) return;
+
+    const simRounds: NegotiationRound[] = [];
+    const baseTime = Date.now();
+
+    for (let r = 1; r <= 3; r++) {
+      currentScoredAgents.forEach((agent) => {
+        const donationAmount =
+          (agent as any).donationAmount ?? (agent as any).donation ?? 0;
+
+        simRounds.push({
+          round: r,
+          agentId: agent.id,
+          donationAmount,
+          compositeScore: agent.compositeScore,
+          explanation: `Round ${r}: ${agent.name} at $${donationAmount.toLocaleString()}`,
+          timestamp: new Date(baseTime + r * 1000).toISOString(),
+        });
+      });
     }
-    if (!auction) return;
 
-    if (myBid <= 0) {
-      setBidError("Bid must be greater than 0.");
-      return;
+    setRounds(simRounds);
+
+    const top = currentScoredAgents[0];
+    setWinnerId(top.id);
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 5000);
+  }
+
+  function handleRunSimulation() {
+    runSimulationNow(scoredAgents, auctionWithWeights);
+  }
+
+  // Auto-simulate when timer hits 0
+  useEffect(() => {
+    if (
+      timeLeft === 0 &&
+      !hasAutoSimulated &&
+      auctionWithWeights &&
+      scoredAgents.length > 0
+    ) {
+      setAuctionClosed(true);
+      runSimulationNow(scoredAgents, auctionWithWeights);
+      setHasAutoSimulated(true);
+    }
+  }, [timeLeft, hasAutoSimulated, scoredAgents, auctionWithWeights]);
+
+  // ---------------------------------------------------------------------------
+  // Client bid handler — PERSIST to backend (/api/bid) and update state
+  // ---------------------------------------------------------------------------
+  async function handlePlaceBid() {
+    const value = parseFloat(bidAmountInput);
+    if (!user || Number.isNaN(value) || value <= 0) return;
+    if (auctionClosed) return;
+
+    // Start timer on first bid
+    if (timeLeft === null) {
+      setTimeLeft(30);
     }
 
     try {
-      const res = await fetch(`/api/auctions/${auction.id}/bids`, {
+      const res = await fetch("/api/bid", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, amount: myBid }),
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          amount: value,
+        }),
       });
 
       if (!res.ok) {
-        setBidError("Failed to place bid.");
-        return;
+        const data = await res.json().catch(() => ({}));
+        console.error("Bid API error:", data);
+        setError(data?.error || "Failed to place bid.");
+      } else {
+        const data = await res.json();
+        const updatedAgent = data.agent as AgentProfile | undefined;
+
+        if (updatedAgent) {
+          const normalizedUpdated = ensureAgentShape(updatedAgent);
+
+          // Update backendAgents so the correct row (ert, etc.) reflects the new donation
+          setBackendAgents((prev) => {
+            let found = false;
+            const next = prev.map((a) => {
+              if (
+                (normalizedUpdated as any).id &&
+                a.id === (normalizedUpdated as any).id
+              ) {
+                found = true;
+                return { ...a, ...normalizedUpdated };
+              }
+              if (
+                (normalizedUpdated as any).email &&
+                (a as any).email &&
+                (a as any).email === (normalizedUpdated as any).email
+              ) {
+                found = true;
+                return { ...a, ...normalizedUpdated };
+              }
+              return a;
+            });
+
+            if (!found) {
+              next.push(normalizedUpdated);
+            }
+
+            return next;
+          });
+        }
+
+        setError(null);
       }
 
-      setBidError(null);
-    } catch {
-      setBidError("Failed to place bid.");
+      // Optional: also reload from backend to stay in sync with any other updates
+      // await reloadAgents();
+    } catch (err) {
+      console.error("Failed to place bid:", err);
+      setError("Failed to place bid.");
+    } finally {
+      setBidAmountInput("");
     }
-  };
+  }
 
-  // Admin simulation triggers a recomputation of timeline data
-  const handleRunSimulation = () => {
-    if (!agents.length) return;
-    setRounds((prev) =>
-      prev.map((r) => ({
-        ...r,
-        compositeScore:
-          agents.find((a) => a.id === r.agentId)?.compositeScore ?? 0,
-      }))
-    );
-  };
-
+  // ---------------------------------------------------------------------------
+  // Render states
+  // ---------------------------------------------------------------------------
   if (!auction) {
     return (
-      <div className="text-sm text-red-400">
-        Auction not found. Please return to the home page.
+      <div className="p-6 text-slate-200">
+        <p>Unknown auction.</p>
       </div>
     );
   }
 
-  const winner: any = agents[0];
-
-  // measure winner box size when state changes
-  // useEffect(() => {
-  //   if (!winnerBoxRef.current) return;
-  //   const rect = winnerBoxRef.current.getBoundingClientRect();
-  //   setConfettiSize({ width: rect.width, height: rect.height });
-  // }, [biddingClosed]);
-
-  // show confetti once when bidding closes
-  useEffect(() => {
-    if (!biddingClosed || !winner) return;
-
-    setShowConfetti(true);
-    const t = setTimeout(() => setShowConfetti(false), 4000); // 4s
-
-    return () => clearTimeout(t);
-  }, [biddingClosed, winner]);
-
-  const handleRunSimulation = () => {
-    setRounds((prev) =>
-      prev.map((r) => ({
-        ...r,
-        compositeScore:
-          (agents as any[]).find((a) => a.id === r.agentId)?.compositeScore ??
-          0,
-      }))
+  if (!user) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-slate-200">
+        <p className="rounded-xl border border-slate-800 bg-slate-950/80 px-6 py-4 text-sm">
+          Please log in to participate in this auction.
+        </p>
+      </div>
     );
-  };
-
-  const minutes = Math.floor(timeLeft / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = (timeLeft % 60).toString().padStart(2, "0");
-
-  const handleBoostDonation = () => {
-    if (!clientAgent) return;
-    const numeric = Number(extraAmount);
-    if (!numeric || isNaN(numeric) || numeric <= 0) return;
-
-    setDonationAdjustments((prev) => ({
-      ...prev,
-      [clientAgent.id]: (prev[clientAgent.id] ?? 0) + numeric,
-    }));
-
-    setExtraAmount("");
-  };
-
-  const currentClientRow = clientAgent
-    ? (agents as any[]).find((a) => a.id === clientAgent.id)
-    : undefined;
-
-  const clientDisplayName =
-    user?.name ||
-    currentClientRow?.displayName ||
-    clientAgent?.displayName ||
-    clientAgent?.name ||
-    "You";
+  }
 
   return (
-    <div className="flex flex-col gap-5">
-      <AuctionDetailHeader
-        auction={auction}
-        donationWeight={donationWeight}
-        profileWeight={profileWeight}
-        fairnessWeight={fairnessWeight}
-      />
+    <>
+      {showConfetti && <Confetti recycle={false} numberOfPieces={400} />}
 
-      {/* Bidding status row */}
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px]">
-            {biddingClosed ? "Bidding Closed" : "Bidding Open"}
-          </span>
+      <div className="flex flex-col gap-6 pb-10">
+        <AuctionDetailHeader
+          auction={auction}
+          donationWeight={donationWeight}
+          profileWeight={profileWeight}
+          fairnessWeight={fairnessWeight}
+          showWeights={isAdmin}
+        />
 
-          {!biddingClosed && (
-            <span className="text-emerald-300">
-              Time left to bid:{" "}
-              <span className="font-semibold">
-                {minutes}:{seconds}
-              </span>
-            </span>
-          )}
+        <div className="grid gap-5 md:grid-cols-[2fr,1.2fr]">
+          <div className="flex flex-col gap-5">
+            <AgentTable agents={scoredAgents} showScores />
 
-          {biddingClosed && winner && (
-            <span className="text-emerald-300">
-              Winner: <span className="font-semibold">{winner.name}</span>
-            </span>
-          )}
-        </div>
-
-        {!isAdmin && (
-          <span className="text-[11px] text-slate-400">
-            You can place your bid while the timer is running. AI bidding logic
-            uses your impact profile behind the scenes.
-          </span>
-        )}
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
-        {/* LEFT SIDE */}
-        <div className="flex flex-col gap-4">
-
-          {/* Client bid input */}
-          {!isAdmin && !biddingClosed && (
-            <div className="mb-3 flex flex-col gap-2 rounded-xl bg-slate-900/70 p-3 text-xs">
-              <label className="text-[11px] text-slate-300">
-                Your bid amount
-              </label>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  value={myBid}
-                  onChange={(e) => setMyBid(Number(e.target.value))}
-                  className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none"
-                />
-                <button
-                  onClick={handlePlaceBid}
-                  className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-                >
-                  Place bid
-                </button>
+            {/* Timer + Bid section (hidden for admin) */}
+            <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-100">
+                  {isAdmin ? "Auction Timer" : "Your Bid"}
+                </h3>
+                <span className="text-[11px] text-slate-400">
+                  {auctionClosed
+                    ? "Auction closed"
+                    : timeLeft !== null
+                    ? `Time left: ${timeLeft}s`
+                    : "Timer starts on first bid"}
+                </span>
               </div>
 
-              {bidError && (
-                <p className="text-[11px] text-red-400">{bidError}</p>
-              )}
-            </div>
-          )}
-
-          {isAdmin && (
-            <ControlPanel
-              donationWeight={donationWeight}
-              profileWeight={profileWeight}
-              fairnessWeight={fairnessWeight}
-              setDonationWeight={setDonationWeight}
-              setProfileWeight={setProfileWeight}
-              setFairnessWeight={setFairnessWeight}
-              onRunSimulation={handleRunSimulation}
-            />
-          )}
-
-          <AgentTable agents={agents} showScores={isAdmin} />
-        </div>
-
-        {/* RIGHT SIDE */}
-        <div className="flex flex-col gap-4">
-          {isAdmin && winner && (
-            <>
-              <MetricsPanel auction={auction} winner={winner} />
-              <NegotiationTimeline rounds={rounds} agents={agents as any[]} />
-            </>
-          )}
-            {!isAdmin && !biddingClosed && (
-              <div className="mb-3 flex flex-col gap-2 rounded-xl bg-slate-900/70 p-3 text-xs">
-                {user && (
-                  <p className="text-[11px] text-slate-300">
-                    Logged in as{" "}
-                    <span className="font-semibold text-slate-50">{user.name}</span>
-                  </p>
-                )}
-
-                <label className="mt-1 text-[11px] text-slate-300">
-                  Your bid amount
-                </label>
-
-                <div className="flex items-center gap-2">
-                  {/* input will be updated in the next section */}
-                  ...
+              {!isAdmin && (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={0}
+                    value={bidAmountInput}
+                    onChange={(e) => setBidAmountInput(e.target.value)}
+                    placeholder="Enter donation amount"
+                    className="h-8 flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-100 outline-none focus:border-emerald-400"
+                    disabled={auctionClosed}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePlaceBid}
+                    className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                    disabled={auctionClosed}
+                  >
+                    Place Bid
+                  </button>
                 </div>
+              )}
 
-                {bidError && (
-                  <p className="text-[11px] text-red-400">{bidError}</p>
-                )}
-              </div>
+              {loadingAgents && (
+                <p className="mt-2 text-[11px] text-slate-400">
+                  Loading AI agents from backend…
+                </p>
+              )}
+              {error && (
+                <p className="mt-2 text-[11px] text-red-400">{error}</p>
+              )}
+            </section>
+
+            <NegotiationTimeline rounds={rounds} agents={scoredAgents} />
+          </div>
+
+          <div className="flex flex-col gap-5">
+            {isAdmin && (
+              <ControlPanel
+                donationWeight={donationWeight}
+                profileWeight={profileWeight}
+                fairnessWeight={fairnessWeight}
+                setDonationWeight={setDonationWeight}
+                setProfileWeight={setProfileWeight}
+                setFairnessWeight={setFairnessWeight}
+                onRunSimulation={handleRunSimulation}
+              />
             )}
 
+            <MetricsPanel auction={auction} winner={winner} />
+          </div>
         </div>
       </div>
-
-      {/* BOTTOM WINNER BOX WITH CONFETTI */}
-      <section
-        ref={winnerBoxRef}
-        className="relative mt-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-6 text-center text-sm overflow-hidden"
-      >
-        {/* Confetti only inside this box */}
-        {showConfetti && (
-          <Confetti
-            width={window.innerWidth}
-            height={window.innerHeight}
-            recycle={false}
-            numberOfPieces={400}
-          />
-          )}
-
-        {!winner ? (
-          <p className="text-xs text-slate-400">
-            Waiting for bidders to join this auction.
-          </p>
-        ) : !biddingClosed ? (
-          <>
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-              Winner to be announced
-            </div>
-            <div className="text-xl md:text-2xl font-semibold text-emerald-300">
-              Winner to be announced in {minutes}:{seconds}
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Leaderboard is still moving. Final winner will be locked when the
-              timer hits zero.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
-              🏆 Winning Bidder
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-emerald-400">
-              {winner.displayName || winner.name}
-            </div>
-            <div className="mt-3 text-xs text-slate-300">
-              Final donation:{" "}
-              <span className="font-semibold">
-                {currencyFmt.format(toNumber(winner.donation))}
-              </span>
-              {winner.compositeScore != null && (
-                <>
-                  {" "}
-                  • Composite score:{" "}
-                  <span className="font-semibold">
-                    {winner.compositeScore.toFixed(2)}
-                  </span>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
+    </>
   );
 }

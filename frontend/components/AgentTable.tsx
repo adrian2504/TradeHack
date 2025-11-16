@@ -1,92 +1,66 @@
-type Props = {
+"use client";
+
+import React from "react";
+import { AgentProfile } from "@/types";
+
+interface Props {
   agents: AgentProfile[];
   showScores?: boolean;
-};
+}
 
 export default function AgentTable({ agents, showScores = false }: Props) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-100">
-          Bidders
-        </h3>
-
-        <span className="text-[10px] text-slate-400">
-          Ranked by composite score under current weights.
+        <h3 className="text-sm font-semibold text-slate-100">Bidders</h3>
+        <p className="text-[10px] text-slate-400">
+          {agents.length} participants
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
-        <table className="min-w-full border-collapse text-xs">
-          <thead className="bg-slate-900/80 text-slate-300">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Agent</th>
-              <th className="px-4 py-3 text-right font-medium">Donation</th>
-              {showMetrics && (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[11px] text-slate-300">
+          <thead>
+            <tr className="border-b border-slate-800 text-slate-400">
+              <th className="py-2">Name</th>
+              <th className="py-2">Donation</th>
+              {showScores && (
                 <>
-                  <th className="px-4 py-3 text-right font-medium">Profile</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    Fairness
-                  </th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    Composite
-                  </th>
+                  <th className="py-2">Social Impact</th>
+                  <th className="py-2">Philanthropy</th>
+                  <th className="py-2">Fairness</th>
+                  <th className="py-2">Composite Score</th>
                 </>
               )}
             </tr>
           </thead>
-          <tbody>
-            {agents.map((agent, idx) => {
-              const donationNumber = toNumber(agent.donation);
-              const name = agent.displayName || agent.name || "AI Bidder";
 
-              const initialsSource = agent.avatarInitials || agent.initials || name;
-              const initials = String(initialsSource).slice(0, 2).toUpperCase();
+          <tbody>
+            {agents.map((agent) => {
+              const donation =
+                (agent as any).donationAmount ??
+                (agent as any).donation ??
+                0;
 
               return (
-                <tr
-                  key={agent.id}
-                  className={
-                    idx % 2 === 0
-                      ? "bg-slate-950/40"
-                      : "bg-slate-900/40 border-t border-slate-900/60"
-                  }
-                >
-                  {/* Agent name + mini badge */}
-                  <td className="px-4 py-3 align-middle">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-slate-200">
-                        {initials}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-50">
-                          {name}
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {agent.organization || agent.subtitle || ""}
-                        </div>
-                      </div>
-                    </div>
+                <tr key={agent.id} className="border-b border-slate-900">
+                  <td className="py-2">
+                    <span className="font-medium text-slate-100">
+                      {agent.name}
+                    </span>
                   </td>
 
-                  {/* Donation */}
-                  <td className="px-4 py-3 text-right align-middle text-slate-100">
-                    {currencyFmt.format(donationNumber)}
+                  <td className="py-2">
+                    ${donation.toLocaleString()}
                   </td>
 
-                  {/* Metrics only for admin */}
-                  {showMetrics && (
+                  {showScores && (
                     <>
-                      <td className="px-4 py-3 text-right align-middle text-slate-100">
-                        {agent.profileScore ?? "--"}
-                      </td>
-                      <td className="px-4 py-3 text-right align-middle text-slate-100">
-                        {agent.fairnessScore ?? "--"}
-                      </td>
-                      <td className="px-4 py-3 text-right align-middle text-emerald-300">
-                        {agent.compositeScore != null
-                          ? agent.compositeScore.toFixed(2)
-                          : "--"}
+                      <td className="py-2">{agent.socialImpactScore}</td>
+                      <td className="py-2">{agent.philanthropyScore}</td>
+                      <td className="py-2">{agent.fairnessScore}</td>
+                      <td className="py-2 font-semibold text-emerald-400">
+                        {agent.compositeScore?.toFixed(2)}
                       </td>
                     </>
                   )}
