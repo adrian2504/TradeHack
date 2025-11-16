@@ -11,7 +11,7 @@ export type AuctionTheme = {
   status: "upcoming" | "live" | "closed";
 };
 
-export type AgentProfile = {
+export interface AgentProfile {
   id: string;
   name: string;
   avatarInitials: string;
@@ -21,8 +21,9 @@ export type AgentProfile = {
   socialImpactScore: number;
   fairnessScore: number;
   compositeScore: number;
-  strategy: "greedy" | "balanced" | "altruistic";
-};
+  strategy: "client" | "agent" | string;
+}
+
 
 export type NegotiationRound = {
   round: number;

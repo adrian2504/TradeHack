@@ -1,31 +1,17 @@
 type Props = {
-  agents: any[];          // relaxed typing
-  showMetrics?: boolean;  // admin: true, client: false
+  agents: AgentProfile[];
+  showScores?: boolean;
 };
 
-const currencyFmt = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-
-// helper to safely turn "65,000,000" or "$65M" etc into a number
-function toNumber(value: any): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    const cleaned = value.replace(/[^0-9.-]/g, "");
-    const n = Number(cleaned);
-    return isNaN(n) ? 0 : n;
-  }
-  return 0;
-}
-
-export default function AgentTable({ agents, showMetrics = true }: Props) {
+export default function AgentTable({ agents, showScores = false }: Props) {
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-50">AI Bidders</h3>
-        <p className="text-[11px] text-slate-400">
+    <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-100">
+          Bidders
+        </h3>
+
+        <span className="text-[10px] text-slate-400">
           Ranked by composite score under current weights.
         </p>
       </div>
