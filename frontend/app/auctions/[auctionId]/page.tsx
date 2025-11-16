@@ -12,9 +12,10 @@ import AgentTable from "@/components/AgentTable";
 import ControlPanel from "@/components/ControlPanel";
 import MetricsPanel from "@/components/MetricsPanel";
 import NegotiationTimeline from "@/components/NegotiationTimeline";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NegotiationRound } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
+import Confetti from "react-confetti";
 
 function toNumber(value: any): number {
   if (typeof value === "number") return value;
@@ -25,6 +26,12 @@ function toNumber(value: any): number {
   }
   return 0;
 }
+
+const currencyFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
 
 export default function AuctionDetailPage() {
   const params = useParams();
@@ -49,17 +56,21 @@ export default function AuctionDetailPage() {
 
   // countdown (3 minutes)
   const [timeLeft, setTimeLeft] = useState(180);
+  const biddingClosed = timeLeft <= 0;
 
-  // extra donations per agent (client-side, keyed by agent.id)
+  // donation adjustments and client-created bidders
   const [donationAdjustments, setDonationAdjustments] = useState<
     Record<string, number>
   >({});
-
-  // dynamic human bidders created when clients log in
   const [clientAgents, setClientAgents] = useState<any[]>([]);
-
   const [extraAmount, setExtraAmount] = useState<string>("");
 
+  // confetti state for bottom winner box
+  const winnerBoxRef = useRef<HTMLDivElement | null>(null);
+  const [confettiSize, setConfettiSize] = useState({ width: 0, height: 0 });
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // timer tick
   useEffect(() => {
     if (timeLeft <= 0) return;
     const id = setInterval(() => {
@@ -68,9 +79,7 @@ export default function AuctionDetailPage() {
     return () => clearInterval(id);
   }, [timeLeft]);
 
-  const biddingClosed = timeLeft <= 0;
-
-  // When a client logs in, create a dedicated bidder row for them (if not already present)
+  // when a client logs in, create a dedicated bidder row for them (if not already present)
   useEffect(() => {
     if (!user || user.role !== "client") return;
 
@@ -85,7 +94,6 @@ export default function AuctionDetailPage() {
         displayName: user.name,
         clientName: user.name,
         organization: "Individual Donor",
-        // neutral default scores – your scoring logic can refine this later
         donation: 0,
         profileScore: 80,
         fairnessScore: 80,
@@ -104,9 +112,7 @@ export default function AuctionDetailPage() {
   // Which agent row belongs to the currently logged-in client?
   const clientAgent = useMemo(() => {
     if (!user || user.role !== "client") return null;
-    return (
-      clientAgents.find((a) => a.clientName === user.name) ?? null
-    );
+    return clientAgents.find((a) => a.clientName === user.name) ?? null;
   }, [user, clientAgents]);
 
   // Build agents array with adjusted donations + composite scores
@@ -162,6 +168,23 @@ export default function AuctionDetailPage() {
   }
 
   const winner: any = agents[0];
+
+  // measure winner box size when state changes
+  // useEffect(() => {
+  //   if (!winnerBoxRef.current) return;
+  //   const rect = winnerBoxRef.current.getBoundingClientRect();
+  //   setConfettiSize({ width: rect.width, height: rect.height });
+  // }, [biddingClosed]);
+
+  // show confetti once when bidding closes
+  useEffect(() => {
+    if (!biddingClosed || !winner) return;
+
+    setShowConfetti(true);
+    const t = setTimeout(() => setShowConfetti(false), 4000); // 4s
+
+    return () => clearTimeout(t);
+  }, [biddingClosed, winner]);
 
   const handleRunSimulation = () => {
     setRounds((prev) =>
@@ -273,90 +296,126 @@ export default function AuctionDetailPage() {
           )}
 
           {!isAdmin && (
-            <>
-              {/* Client donation panel – ONLY for their own row */}
-              <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
-                  Boost Your Donation
-                </div>
-                {clientAgent ? (
-                  <>
-                    <p className="mb-2 text-[11px] text-slate-400">
-                      You are bidding as{" "}
-                      <span className="font-semibold text-slate-100">
-                        {clientDisplayName}
-                      </span>
-                      . Increase your donation below. Other bidders&apos; amounts
-                      are visible but cannot be edited.
-                    </p>
-
-                    <div className="mb-3 space-y-1">
-                      <div className="text-[11px] text-slate-300">
-                        Current donation:
-                      </div>
-                      <div className="text-sm font-semibold text-emerald-300">
-                        {currentClientRow
-                          ? new Intl.NumberFormat("en-US", {
-                              style: "currency",
-                              currency: "USD",
-                              maximumFractionDigits: 0,
-                            }).format(toNumber(currentClientRow.donation))
-                          : "—"}
-                      </div>
-                    </div>
-
-                    <div className="mb-3 space-y-2">
-                      <label className="block text-[11px] text-slate-300">
-                        Additional donation (USD)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100000"
-                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-slate-100 outline-none focus:border-emerald-500"
-                        placeholder="e.g., 5000000"
-                        value={extraAmount}
-                        onChange={(e) => setExtraAmount(e.target.value)}
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleBoostDonation}
-                      className="w-full rounded-xl bg-emerald-500 px-3 py-2 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 active:scale-[0.99]"
-                    >
-                      Update donation
-                    </button>
-                  </>
-                ) : (
-                  <p className="text-[11px] text-slate-400">
-                    Your bidder profile could not be matched. Please contact
-                    the organizers.
-                  </p>
-                )}
-              </section>
-
-              {/* Winner panel for client once bidding closed */}
-              {winner && biddingClosed && (
-                <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-xs">
-                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
-                    Winning Bidder
-                  </div>
-                  <div className="text-sm font-semibold text-slate-50">
-                    {winner.displayName || winner.name}
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-300">
-                    Composite score:{" "}
-                    <span className="font-semibold">
-                      {winner.compositeScore?.toFixed(2)}
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-xs">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
+                Boost Your Donation
+              </div>
+              {clientAgent ? (
+                <>
+                  <p className="mb-2 text-[11px] text-slate-400">
+                    You are bidding as{" "}
+                    <span className="font-semibold text-slate-100">
+                      {clientDisplayName}
                     </span>
+                    . Increase your donation below. Other bidders&apos; amounts
+                    are visible but cannot be edited.
                   </p>
-                </section>
+
+                  <div className="mb-3 space-y-1">
+                    <div className="text-[11px] text-slate-300">
+                      Current donation:
+                    </div>
+                    <div className="text-sm font-semibold text-emerald-300">
+                      {currentClientRow
+                        ? currencyFmt.format(
+                            toNumber(currentClientRow.donation)
+                          )
+                        : "—"}
+                    </div>
+                  </div>
+
+                  <div className="mb-3 space-y-2">
+                    <label className="block text-[11px] text-slate-300">
+                      Additional donation (USD)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100000"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-slate-100 outline-none focus:border-emerald-500"
+                      placeholder="e.g., 5000000"
+                      value={extraAmount}
+                      onChange={(e) => setExtraAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleBoostDonation}
+                    className="w-full rounded-xl bg-emerald-500 px-3 py-2 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 active:scale-[0.99]"
+                  >
+                    Update donation
+                  </button>
+                </>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  Your bidder profile could not be matched. Please contact the
+                  organizers.
+                </p>
               )}
-            </>
+            </section>
           )}
         </div>
       </div>
+
+      {/* BOTTOM WINNER BOX WITH CONFETTI */}
+      <section
+        ref={winnerBoxRef}
+        className="relative mt-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-6 text-center text-sm overflow-hidden"
+      >
+        {/* Confetti only inside this box */}
+        {showConfetti && (
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            recycle={false}
+            numberOfPieces={400}
+          />
+          )}
+
+        {!winner ? (
+          <p className="text-xs text-slate-400">
+            Waiting for bidders to join this auction.
+          </p>
+        ) : !biddingClosed ? (
+          <>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+              Winner to be announced
+            </div>
+            <div className="text-xl md:text-2xl font-semibold text-emerald-300">
+              Winner to be announced in {minutes}:{seconds}
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Leaderboard is still moving. Final winner will be locked when the
+              timer hits zero.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
+              🏆 Winning Bidder
+            </div>
+            <div className="text-2xl md:text-3xl font-bold text-emerald-400">
+              {winner.displayName || winner.name}
+            </div>
+            <div className="mt-3 text-xs text-slate-300">
+              Final donation:{" "}
+              <span className="font-semibold">
+                {currencyFmt.format(toNumber(winner.donation))}
+              </span>
+              {winner.compositeScore != null && (
+                <>
+                  {" "}
+                  • Composite score:{" "}
+                  <span className="font-semibold">
+                    {winner.compositeScore.toFixed(2)}
+                  </span>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
