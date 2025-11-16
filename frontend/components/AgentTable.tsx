@@ -2,15 +2,17 @@ import { AgentProfile } from "@/types";
 
 type Props = {
   agents: AgentProfile[];
+  showScores?: boolean;
 };
 
-export default function AgentTable({ agents }: Props) {
+export default function AgentTable({ agents, showScores = false }: Props) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-100">
-          AI Bidders
+          Bidders
         </h3>
+
         <span className="text-[10px] text-slate-400">
           Ranked by composite score under current weights.
         </span>
