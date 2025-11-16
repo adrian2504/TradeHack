@@ -1,101 +1,132 @@
-from fastapi import FastAPI, Depends, HTTPException
+# backend/app/main.py
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-import os # <--- 1. Import os to read from .env
+from pathlib import Path
+import json
+import os
 
-# Import your modules
-from .database import get_db, engine
+from .database import engine  # kept so tables are created
 from . import sql_models
-from . import auction_engine 
-from . import solana_service # <--- 2. Import your solana service
-# from . import api_models # (You may have this for Pydantic response models)
 
-# This command creates the tables in your DB if they don't exist
-# (Supabase already did this, but it's good practice)
-sql_models.Base.metadata.create_all(bind=engine)
+# -------------------------------------------------------------------
+# FastAPI app + CORS
+# -------------------------------------------------------------------
 
 app = FastAPI()
 
-# Add CORS
+# Allow frontend (Next.js) to call this backend
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", # Vite default
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=[FRONTEND_ORIGIN, "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.post("/api/v1/run-auction/{auction_id}")
-async def run_auction(
-    auction_id: str, 
-    db: Session = Depends(get_db) 
-):
+# Create tables if needed (Supabase already has schema, but harmless)
+sql_models.Base.metadata.create_all(bind=engine)
+
+
+# -------------------------------------------------------------------
+# Health check
+# -------------------------------------------------------------------
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+# -------------------------------------------------------------------
+# New: expose agent JSON updated by Gemini
+# This reads backend/edge_input.json and maps it to AgentProfile[]
+# -------------------------------------------------------------------
+
+@app.get("/api/v1/agents")
+def get_agents_from_edge_json():
     """
-    Main API endpoint to run the entire auction,
-    including AI scoring and on-chain settlement.
+    Returns agents in the shape your frontend expects, based on edge_input.json.
+
+    edge_input.json looks like:
+    {
+      "social_mode": "...",
+      "final_winner": {...},
+      "rounds": [
+        {
+          "round_index": 1,
+          "ranking": [
+            {
+              "name": "Random Investor",
+              "money_score": ...,
+              "social_score": ...,
+              "final_score": ...,
+              "bid": ...,
+              "social_reason": "..."
+            },
+            ...
+          ]
+        },
+        ...
+      ]
+    }
     """
-    
+
+    # backend folder = one level above this file's directory
+    base_dir = Path(__file__).resolve().parents[1]
+    json_path = base_dir / "edge_input.json"
+
+    if not json_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"edge_input.json not found at {json_path}",
+        )
+
     try:
-        # RUN AUCTION ENGINE 
-        print(f"Running auction for: {auction_id}")
-        result_dict = await auction_engine.run_auction_from_db(
-            auction_id=auction_id,
-            db=db
-        )
-
-        # PREPARE SOLANA SETTLEMENT -
-        # Extract the winner's data from the engine's result
-        if "winner" not in result_dict or not result_dict["winner"]:
-            raise auction_engine.AuctionError("Auction engine failed to select a winner.")
-            
-        winner_data = result_dict["winner"]
-        
-        # Get the winning bid amount from the winner's profile
-        # (This comes from the 'max_bid' key we created in the engine)
-        winning_bid_amount_usd = winner_data["profile"]["max_bid"]
-        
-        # Get wallet keys from your .env file
-        # The "FROM" wallet is the your hardcoded bidder wallet
-        from_key = os.getenv("YOUR_HARDCODED_WINNER_SECRET_KEY_FOR_DEMO")
-        # The "TO" wallet is the your project's wallet
-        to_key = os.getenv("YOUR_PROJECT_WALLET_PUBLIC_KEY_HERE")
-
-        if not from_key or not to_key:
-            print("ERROR: Solana wallet keys not found in .env file.")
-            raise HTTPException(status_code=500, detail="Server is missing Solana wallet configuration.")
-
-        # EXECUTE SOLANA SETTLEMENT 
-        print(f"Settling winning bid of ${winning_bid_amount_usd} on Solana...")
-        tx_id = await solana_service.settle_on_solana(
-            from_secret_key_str=from_key,
-            to_public_key_str=to_key,
-            amount_usd=winning_bid_amount_usd
-        )
-        
-        tx_url = f"https://explorer.solana.com/tx/{tx_id}?cluster=devnet"
-        print(f"Settlement successful: {tx_url}")
-
-        # ADD PROOF TO RESPONSE 
-        # Inject the Solana proof into the result object
-        result_dict["winner"]["solana_tx_id"] = tx_id
-        result_dict["winner"]["solana_tx_url"] = tx_url
-
-        # UPDATE DB 
-        # update the AUCTION table to 'COMPLETED'
-        # db.query(sql_models.Auction).filter(...).update({"status": "COMPLETED"})
-        # db.commit()
-
-        # Return the final, combined result
-        return result_dict
-
-    except auction_engine.AuctionError as e:
-        # This catches errors like "Auction not found"
-        print(f"Auction Error: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+        data = json.loads(json_path.read_text())
     except Exception as e:
-        # This catches all other errors (Solana, Gemini, etc.)
-        print(f"Unhandled Error during auction: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read edge_input.json: {e}",
+        )
+
+    rounds = data.get("rounds", [])
+    if rounds:
+        # Use the latest (last) round ranking
+        last_round = rounds[-1]
+        ranking = last_round.get("ranking", [])
+    else:
+        ranking = []
+
+    agents = []
+
+    for idx, r in enumerate(ranking):
+        name = r.get("name", f"Agent {idx+1}")
+        bid = r.get("bid", 0.0)
+        final_score = r.get("final_score", 0.0)
+        social_score = r.get("social_score", 0.0)
+
+        # Helper: initials from name
+        initials = "".join(part[0] for part in name.split() if part).upper() or "A"
+
+        # Map to frontend AgentProfile shape
+        agent = {
+            "id": f"agent-{idx+1}",
+            "name": name,
+            "avatarInitials": initials,
+            "affiliation": "AI Agent",
+            "donationAmount": float(bid),
+            # Map scores to 0–100 style; tweak as needed
+            "philanthropyScore": int(social_score * 100),
+            "socialImpactScore": int(social_score * 100),
+            "fairnessScore": 50,          # placeholder; you can wire real fairness here
+            "compositeScore": round(final_score * 100, 2),
+            "strategy": "agent",
+        }
+        agents.append(agent)
+
+    return {
+        "agents": agents,
+        "raw": data,  # optional: lets you inspect full JSON from frontend if needed
+    }

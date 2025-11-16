@@ -1,6 +1,36 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabaseServer";
+import fs from "fs";
+import path from "path";
+
+type JsonUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "client";
+  passwordHash: string;
+};
+
+function getEdgeInputPath() {
+  // frontend/ → ../backend/edge_input.json
+  return path.join(process.cwd(), "..", "backend", "edge_input.json");
+}
+
+async function loadJson(): Promise<any> {
+  const edgePath = getEdgeInputPath();
+
+  if (!fs.existsSync(edgePath)) {
+    return {};
+  }
+
+  const raw = await fs.promises.readFile(edgePath, "utf-8");
+  return JSON.parse(raw || "{}");
+}
+
+async function saveJson(json: any) {
+  const edgePath = getEdgeInputPath();
+  await fs.promises.writeFile(edgePath, JSON.stringify(json, null, 2), "utf-8");
+}
 
 export async function POST(req: Request) {
   const { name, email, password } = await req.json();
@@ -9,61 +39,84 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  // Check if user already exists
-  const { data: existing, error: existingErr } = await supabaseServer
-    .from("user")
-    .select("user_id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (existingErr) {
-    console.error("Existing user check error", existingErr);
+  // Admin account is fixed – don’t allow registering it
+  if (email === "admin@gmail.com") {
     return NextResponse.json(
-      { error: "Server error while checking existing user" },
-      { status: 500 }
-    );
-  }
-
-  if (existing) {
-    return NextResponse.json(
-      { error: "An account with this email already exists." },
+      { error: "Admin account already exists. Please log in as admin." },
       { status: 400 }
     );
   }
 
-  const hash = await bcrypt.hash(password, 10);
-  const userId = crypto.randomUUID();
+  try {
+    const json = await loadJson();
 
-  const { data, error } = await supabaseServer
-    .from("user")
-    .insert({
-      user_id: userId,
+    const users: JsonUser[] = Array.isArray(json.users) ? json.users : [];
+
+    const existing = users.find((u) => u.email === email);
+    if (existing) {
+      return NextResponse.json(
+        { error: "An account with this email already exists." },
+        { status: 400 }
+      );
+    }
+
+    const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const role: "admin" | "client" = "client";
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const newUser: JsonUser = {
+      id,
       name,
       email,
-      password: hash,
-      // set safe defaults for non-null numeric columns
-      philanthropy_score: 80,
-      socialimpact_score: 80,
-      fairness_score: 80,
-      donation: 0,
-      composite_score: 0,
-    })
-    .select("user_id, name, email")
-    .single();
+      role,
+      passwordHash,
+    };
 
-  if (error) {
-    console.error("Create user error", error);
+    // Save user for auth
+    users.push(newUser);
+    json.users = users;
+
+    // Also add them as a bidder (agent) with 0 donation
+    const agents = Array.isArray(json.agents) ? json.agents : [];
+    const initials = (name || email)
+      .split(" ")
+      .filter(Boolean)
+      .map((p: string) => p[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    agents.push({
+      id,
+      name,
+      email,
+      avatarInitials: initials,
+      affiliation: "Client Bidder",
+      donationAmount: 0,
+      philanthropyScore: 70,
+      socialImpactScore: 70,
+      fairnessScore: 70,
+      compositeScore: 0,
+      strategy: "client",
+    });
+
+    json.agents = agents;
+
+    await saveJson(json);
+
+    return NextResponse.json({
+      user: {
+        id,
+        name,
+        email,
+        role,
+      },
+    });
+  } catch (err) {
+    console.error("Register error:", err);
     return NextResponse.json(
-      { error: error.message ?? "Failed to create user" },
+      { error: "Failed to create user" },
       { status: 500 }
     );
   }
-
-  // We treat all registered users as "client" in the app
-  return NextResponse.json({
-    id: data.user_id,
-    name: data.name,
-    email: data.email,
-    role: "client",
-  });
 }
