@@ -3,7 +3,6 @@
 import { useParams } from "next/navigation";
 import {
   AUCTIONS,
-  MOCK_AGENTS,
   computeCompositeScore,
   MOCK_ROUNDS,
 } from "@/lib/auctions";
@@ -16,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NegotiationRound } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 import Confetti from "react-confetti";
+import { fetchLatestAgentsFromBackend } from "@/lib/api";
 
 function toNumber(value: any): number {
   if (typeof value === "number") return value;
@@ -54,7 +54,7 @@ export default function AuctionDetailPage() {
 
   const [rounds, setRounds] = useState<NegotiationRound[]>(MOCK_ROUNDS);
 
-  // countdown (3 minutes)
+  // countdown (3 minutes) – currently 20 seconds for testing
   const [timeLeft, setTimeLeft] = useState(20);
   const biddingClosed = timeLeft <= 0;
 
@@ -64,6 +64,11 @@ export default function AuctionDetailPage() {
   >({});
   const [clientAgents, setClientAgents] = useState<any[]>([]);
   const [extraAmount, setExtraAmount] = useState<string>("");
+
+  // backend agents (from Supabase users table)
+  const [backendAgents, setBackendAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
 
   // full-screen confetti
   const [showConfetti, setShowConfetti] = useState(false);
@@ -92,6 +97,24 @@ export default function AuctionDetailPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // fetch AI / base agents from backend (Supabase -> /api/agents)
+  useEffect(() => {
+    async function loadAgents() {
+      try {
+        const data = await fetchLatestAgentsFromBackend();
+        // data should be in the same shape your table expects (id, name, donation or donationAmount, profile/fairness, etc.)
+        setBackendAgents(data as any[]);
+      } catch (err) {
+        console.error("Failed to load agents from backend", err);
+        setAgentsError("Failed to load agents from backend.");
+      } finally {
+        setAgentsLoading(false);
+      }
+    }
+
+    loadAgents();
+  }, []);
+
   // when a client logs in, create a dedicated bidder row for them (if not already present)
   useEffect(() => {
     if (!user || user.role !== "client") return;
@@ -116,10 +139,10 @@ export default function AuctionDetailPage() {
     });
   }, [user]);
 
-  // base agents = static AI bidders + all client-created bidders
+  // base agents = backend AI bidders + all client-created bidders
   const baseAgents = useMemo(
-    () => [...MOCK_AGENTS, ...clientAgents],
-    [clientAgents]
+    () => [...backendAgents, ...clientAgents],
+    [backendAgents, clientAgents]
   );
 
   // Which agent row belongs to the currently logged-in client?
@@ -143,7 +166,13 @@ export default function AuctionDetailPage() {
 
     return baseAgents
       .map((agent: any) => {
-        const baseDonation = toNumber(agent.donation);
+        // For backend agents, you may be using `donation` or `donationAmount`.
+        // If your Supabase row only has `donationAmount`, you can either:
+        //   - map it to `donation` in the API, or
+        //   - read it here with a fallback:
+        const baseDonation = toNumber(
+          agent.donation ?? agent.donationAmount ?? 0
+        );
         const extra = donationAdjustments[agent.id] ?? 0;
         const adjustedDonation = baseDonation + extra;
 
@@ -187,7 +216,7 @@ export default function AuctionDetailPage() {
     if (!biddingClosed || !winner) return;
 
     setShowConfetti(true);
-    const t = setTimeout(() => setShowConfetti(false), 10000); // 4s
+    const t = setTimeout(() => setShowConfetti(false), 10000); // 10s
 
     return () => clearTimeout(t);
   }, [biddingClosed, winner]);
@@ -290,6 +319,18 @@ export default function AuctionDetailPage() {
             </span>
           )}
         </div>
+
+        {/* agents loading / error banners */}
+        {agentsLoading && (
+          <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+            Loading agents from backend…
+          </div>
+        )}
+        {agentsError && !agentsLoading && (
+          <div className="rounded-md border border-red-700 bg-red-950 px-3 py-2 text-xs text-red-200">
+            {agentsError}
+          </div>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
           {/* LEFT SIDE */}
