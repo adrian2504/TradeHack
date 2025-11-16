@@ -12,13 +12,14 @@ except ImportError:
 
 load_dotenv()
 
+# Load Gemini API key from environment
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+if not GEMINI_API_KEY:
+    raise ValueError("❌ GEMINI_API_KEY is missing. Set it in your environment variables.")
 
-gemini_client: Optional["genai.Client"] = None
-
-if GEMINI_API_KEY and genai is not None:
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Gemini client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -140,63 +141,33 @@ def compute_social_score_gemini(
     client: "genai.Client",
 ) -> Tuple[float, str]:
     """
-    Ask Gemini to evaluate the social impact of a profile.
-    Returns (score, reason).
+    Uses Gemini to analyze user profile data and give a numerical score (0-100).
     """
     prompt = f"""
-You are an evaluator that scores people based on positive social impact and ethical alignment.
+    Analyze the following user profile and return ONLY a social trust score (0-100).
+    Profile data:
+    {profile_data}
 
-Profile:
-- Name: {profile["name"]}
-- Country: {profile["country"]}
-- Profession: {profile["profession"]}
-- Social contribution: {profile["social_contribution"]}
+    Score criteria:
+    - Communication clarity
+    - Past behavior or signals
+    - Cooperation likelihood
+    - No ethics or moral judgment
+    - Pure behavioral prediction
 
-Scoring rules:
-- Harmful industries (e.g., tobacco, weapons, hard drugs, exploitative gambling) should receive lower scores.
-- Contributions helping vulnerable groups (children, women, refugees, sick people, poor communities) should increase the score.
-- Contributions to education, healthcare, environment, human rights and poverty reduction should increase the score.
-- Donation amount matters, but ethics and impact of the action matter more than raw money.
-- The score MUST be between 0 and 1.
-
-Output format:
-Respond STRICTLY as JSON, with NO markdown, NO code fences, and NO extra commentary.
-The JSON MUST have this exact structure:
-{{
-  "social_score": <number between 0 and 1>,
-  "reason": "Short 1-3 sentence explanation."
-}}
-    """.strip()
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-    )
+    Return ONLY a number.
+    """
 
     raw_text = response.text.strip()
 
+    # Extract numeric value
     try:
-        data = extract_json_from_text(raw_text)
-        score = float(data["social_score"])
-        reason = str(data.get("reason", "")).strip()
-        return clamp(score), reason or "AI-based social impact evaluation."
-    except Exception:
-        fallback_score = compute_social_score_rule_based(profile)
-        fallback_reason = (
-            "Fallback: Gemini output not parseable as JSON, used rule-based scoring instead."
-        )
-        return fallback_score, fallback_reason
+        score = float(text.strip())
+    except:
+        score = 50.0  # fallback
 
+    return max(0, min(100, score))
 
-def compute_social_scores_gemini(
-    profiles: List[Dict[str, Any]],
-    client: "genai.Client",
-) -> Dict[str, Tuple[float, str]]:
-    scores: Dict[str, Tuple[float, str]] = {}
-    for p in profiles:
-        score, reason = compute_social_score_gemini(p, client)
-        scores[p["name"]] = (score, reason)
-    return scores
 
 def rank_profiles(
     profiles: List[Dict[str, Any]],
@@ -218,76 +189,49 @@ def rank_profiles(
     WEIGHT_SOCIAL = clamp(social_weight)
     WEIGHT_MONEY = 1.0 - WEIGHT_SOCIAL
 
-    results = []
-    for p in profiles:
-        name = p["name"]
-        money_score = money_scores[name]
-        social_score, reason = social_scores_raw[name]
+    processed = []
 
-        final_score = WEIGHT_SOCIAL * social_score + WEIGHT_MONEY * money_score
+    for b in bidders:
+        social_score = calculate_social_score(b["profile"])
+        normalized = normalize_bid(b["bid"], social_score)
 
-        results.append(
-            {
-                "name": name,
-                "money_score": round(money_score, 3),
-                "social_score": round(social_score, 3),
-                "final_score": round(final_score, 3),
-                "social_reason": reason,
-                "profile": p,
-            }
-        )
+        processed.append({
+            "user_id": b["user_id"],
+            "bid": b["bid"],
+            "social_score": social_score,
+            "normalized_score": normalized
+        })
 
-    results_sorted = sorted(results, key=lambda x: -x["final_score"])
-    winner = results_sorted[0]
+    # Sort descending by normalized score
+    rankings = sorted(processed, key=lambda x: x["normalized_score"], reverse=True)
 
     return {
-        "ranking": results_sorted,
-        "winner": winner,
-        "social_mode": social_mode,
+        "winner": rankings[0],
+        "rankings": rankings
     }
 
-# if __name__ == "__main__":
-#     profiles_demo = [
-#         {
-#             "name": "Adrian Dsouza",
-#             "country": "United States",
-#             "start_bid": 50000,
-#             "max_bid": 100000,
-#             "profession": "Lawyer",
-#             "social_contribution": (
-#                 "Donated 5000 for hungry children in NYC, "
-#                 "helped fight for the right of women."
-#             ),
-#         },
-#         {
-#             "name": "Charles Dsouza",
-#             "country": "United States",
-#             "start_bid": 100000,
-#             "max_bid": 200000,
-#             "profession": "Tobacco Factory",
-#             "social_contribution": "Donated $1000 for planting trees.",
-#         },
-#     ]
 
-#     use_gemini_flag = bool(gemini_client)
+# ----------------------------------------------------------
+# Agent Explanation System (optional, but helpful for UI)
+# ----------------------------------------------------------
+def explain_decision(winner_data: dict):
+    """
+    Uses Gemini to generate a human-readable explanation of why the model
+    selected the winning bidder.
+    """
 
-#     result = rank_profiles(profiles_demo, use_gemini=use_gemini_flag)
+    prompt = f"""
+    The system selected this winner:
 
-#     print(f"Social scoring mode: {result['social_mode']}")
-#     print("---- Winner ----")
-#     print(f"Name: {result['winner']['name']}")
-#     print(f"Final score: {result['winner']['final_score']}")
-#     print(f"Money score: {result['winner']['money_score']}")
-#     print(f"Social score: {result['winner']['social_score']}")
-#     print(f"Reason: {result['winner']['social_reason']}")
-#     print()
+    {winner_data}
 
-#     print("---- Full ranking ----")
-#     for r in result["ranking"]:
-#         print(
-#             f"{r['name']}: final={r['final_score']}, "
-#             f"money={r['money_score']}, social={r['social_score']}"
-#         )
-#         print(f"  Reason: {r['social_reason']}")
-#         print()
+    Explain briefly and clearly why this bidder won,
+    referencing:
+    - Bid value
+    - Social score
+    - Normalized score
 
+    Keep the explanation under 120 words.
+    """
+
+    return ask_gemini("gemini-1.5-flash", prompt)
