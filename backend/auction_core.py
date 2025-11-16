@@ -243,47 +243,49 @@ def rank_profiles(
     }
 
 
-if __name__ == "__main__":
-    profiles_demo = [
-        {
-            "name": "Adrian Dsouza",
-            "country": "United States",
-            "start_bid": 50000,
-            "max_bid": 100000,
-            "profession": "Lawyer",
-            "social_contribution": (
-                "Donated 5000 for hungry children in NYC, "
-                "helped fight for the right of women."
-            ),
-        },
-        {
-            "name": "Charles Dsouza",
-            "country": "United States",
-            "start_bid": 100000,
-            "max_bid": 200000,
-            "profession": "Tobacco Factory",
-            "social_contribution": "Donated $1000 for planting trees.",
-        },
-    ]
+# # ----------------- DEMO MAIN ----------------- #
 
-    use_gemini_flag = bool(gemini_client)
+# if __name__ == "__main__":
+#     profiles_demo = [
+#         {
+#             "name": "Adrian Dsouza",
+#             "country": "United States",
+#             "start_bid": 50000,
+#             "max_bid": 100000,
+#             "profession": "Lawyer",
+#             "social_contribution": (
+#                 "Donated 5000 for hungry children in NYC, "
+#                 "helped fight for the right of women."
+#             ),
+#         },
+#         {
+#             "name": "Charles Dsouza",
+#             "country": "United States",
+#             "start_bid": 100000,
+#             "max_bid": 200000,
+#             "profession": "Tobacco Factory",
+#             "social_contribution": "Donated $1000 for planting trees.",
+#         },
+#     ]
 
-    result = rank_profiles(profiles_demo, use_gemini=use_gemini_flag)
+#     use_gemini_flag = bool(gemini_client)
 
-    print(f"Social scoring mode: {result['social_mode']}")
-    print("---- Winner ----")
-    print(f"Name: {result['winner']['name']}")
-    print(f"Final score: {result['winner']['final_score']}")
-    print(f"Money score: {result['winner']['money_score']}")
-    print(f"Social score: {result['winner']['social_score']}")
-    print(f"Reason: {result['winner']['social_reason']}")
-    print()
+#     result = rank_profiles(profiles_demo, use_gemini=use_gemini_flag)
 
-    print("---- Full ranking ----")
-    for r in result["ranking"]:
-        print(
-            f"{r['name']}: final={r['final_score']}, "
-            f"money={r['money_score']}, social={r['social_score']}"
-        )
-        print(f"  Reason: {r['social_reason']}")
-        print()
+#     print(f"Social scoring mode: {result['social_mode']}")
+#     print("---- Winner ----")
+#     print(f"Name: {result['winner']['name']}")
+#     print(f"Final score: {result['winner']['final_score']}")
+#     print(f"Money score: {result['winner']['money_score']}")
+#     print(f"Social score: {result['winner']['social_score']}")
+#     print(f"Reason: {result['winner']['social_reason']}")
+#     print()
+
+#     print("---- Full ranking ----")
+#     for r in result["ranking"]:
+#         print(
+#             f"{r['name']}: final={r['final_score']}, "
+#             f"money={r['money_score']}, social={r['social_score']}"
+#         )
+#         print(f"  Reason: {r['social_reason']}")
+#         print()

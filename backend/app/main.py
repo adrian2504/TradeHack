@@ -1,83 +1,101 @@
-# backend/app/main.py
-import os
-import logging
-from typing import List, Dict, Any
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import os # <--- 1. Import os to read from .env
 
-from .models import AuctionRequest, AuctionResult, BidderProfile, AuctionRankItem
-
+# Import your modules
+from .database import get_db, engine
+from . import sql_models
 from . import auction_engine 
+from . import solana_service # <--- 2. Import your solana service
+# from . import api_models # (You may have this for Pydantic response models)
 
-from . import solana_service 
+# This command creates the tables in your DB if they don't exist
+# (Supabase already did this, but it's good practice)
+sql_models.Base.metadata.create_all(bind=engine)
 
-# --- Logging ---
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=LOG_LEVEL)
-logger = logging.getLogger("hacknyu.auction")
+app = FastAPI()
 
+# Add CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
+    allow_origins=[
+        "http://localhost:5173", # Vite default
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-PROJECT_WALLETS = {
-    "default_project": os.getenv("PROJECT_WALLET_PUBLIC_KEY", "YOUR_PROJECT_WALLET_PUBLIC_KEY_HERE")
-}
-
-# From-wallet secret key for demo settlement:
-# WARNING: For production do NOT hardcode private keys. Use secure vaults.
-FROM_WALLET_SECRET_KEY = os.getenv("FROM_WALLET_SECRET_KEY", None)
-
-
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "HACKNYU Auction API running"}
-
-
-@app.post("/api/v1/run-auction", response_model=AuctionResult)
-async def run_auction(request: AuctionRequest):
-    profiles_as_dicts: List[Dict[str, Any]] = [
-        p.model_dump() for p in request.profiles
-    ]
-
-    try:
-        result_dict = auction_engine.rank_profiles(
-            profiles=profiles_as_dicts,
-            social_weight=request.social_weight,
-            use_gemini=request.use_gemini
-        )
-
-        winner_data = result_dict["winner"]
-        winner_profile = BidderProfile(**winner_data["profile"])
-        winning_bid_amount = winner_profile.max_bid
+@app.post("/api/v1/run-auction/{auction_id}")
+async def run_auction(
+    auction_id: str, 
+    db: Session = Depends(get_db) 
+):
+    """
+    Main API endpoint to run the entire auction,
+    including AI scoring and on-chain settlement.
+    """
     
-        FROM_WALLET_SECRET_KEY = "YOUR_HARDCODED_WINNER_SECRET_KEY_FOR_DEMO"
-        TO_WALLET_PUBLIC_KEY = PROJECT_WALLETS["default_project"]
-
-        tx_id = await solana_service.settle_on_solana(
-            from_secret_key=FROM_WALLET_SECRET_KEY,
-            to_public_key=TO_WALLET_PUBLIC_KEY,
-            amount=winning_bid_amount
+    try:
+        # RUN AUCTION ENGINE 
+        print(f"Running auction for: {auction_id}")
+        result_dict = await auction_engine.run_auction_from_db(
+            auction_id=auction_id,
+            db=db
         )
+
+        # PREPARE SOLANA SETTLEMENT -
+        # Extract the winner's data from the engine's result
+        if "winner" not in result_dict or not result_dict["winner"]:
+            raise auction_engine.AuctionError("Auction engine failed to select a winner.")
+            
+        winner_data = result_dict["winner"]
+        
+        # Get the winning bid amount from the winner's profile
+        # (This comes from the 'max_bid' key we created in the engine)
+        winning_bid_amount_usd = winner_data["profile"]["max_bid"]
+        
+        # Get wallet keys from your .env file
+        # The "FROM" wallet is the your hardcoded bidder wallet
+        from_key = os.getenv("YOUR_HARDCODED_WINNER_SECRET_KEY_FOR_DEMO")
+        # The "TO" wallet is the your project's wallet
+        to_key = os.getenv("YOUR_PROJECT_WALLET_PUBLIC_KEY_HERE")
+
+        if not from_key or not to_key:
+            print("ERROR: Solana wallet keys not found in .env file.")
+            raise HTTPException(status_code=500, detail="Server is missing Solana wallet configuration.")
+
+        # EXECUTE SOLANA SETTLEMENT 
+        print(f"Settling winning bid of ${winning_bid_amount_usd} on Solana...")
+        tx_id = await solana_service.settle_on_solana(
+            from_secret_key_str=from_key,
+            to_public_key_str=to_key,
+            amount_usd=winning_bid_amount_usd
+        )
+        
         tx_url = f"https://explorer.solana.com/tx/{tx_id}?cluster=devnet"
+        print(f"Settlement successful: {tx_url}")
 
-        winner_data["solana_tx_id"] = tx_id
-        winner_data["solana_tx_url"] = tx_url
+        # ADD PROOF TO RESPONSE 
+        # Inject the Solana proof into the result object
+        result_dict["winner"]["solana_tx_id"] = tx_id
+        result_dict["winner"]["solana_tx_url"] = tx_url
 
-        for item in result_dict["ranking"]:
-            if item["name"] == winner_data["name"]:
-                item["solana_tx_id"] = tx_id
-                item["solana_tx_url"] = tx_url
-                break
+        # UPDATE DB 
+        # update the AUCTION table to 'COMPLETED'
+        # db.query(sql_models.Auction).filter(...).update({"status": "COMPLETED"})
+        # db.commit()
 
-        return AuctionResult(**result_dict)
+        # Return the final, combined result
+        return result_dict
 
+    except auction_engine.AuctionError as e:
+        # This catches errors like "Auction not found"
+        print(f"Auction Error: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        print(f"Error during auction: {e}")
+        # This catches all other errors (Solana, Gemini, etc.)
+        print(f"Unhandled Error during auction: {e}")
         raise HTTPException(status_code=500, detail=str(e))
