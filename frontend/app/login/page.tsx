@@ -5,47 +5,21 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 
-type ClientAccount = {
-  name: string;
-  email: string;
-  password: string;
-};
-
-const CLIENTS_KEY = "agentbazaar_clients";
-
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin123";
-
-function loadClients(): ClientAccount[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(CLIENTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveClients(clients: ClientAccount[]) {
-  try {
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
-  } catch {
-  }
-}
-
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
   const [mode, setMode] = useState<"client" | "admin">("client");
 
-  const [clientIsNew, setClientIsNew] = useState(false); 
+  // Client fields
+  const [clientIsNew, setClientIsNew] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [clientPassword, setClientPassword] = useState("");
   const [clientPasswordConfirm, setClientPasswordConfirm] = useState("");
 
-  const [adminUsername, setAdminUsername] = useState("");
+  // Admin fields
+  const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +31,10 @@ export default function LoginPage() {
     setAdminPassword("");
   }, [mode]);
 
-  const handleClientSubmit = (e: FormEvent) => {
+  // -------------------------------
+  // CLIENT LOGIN / SIGNUP HANDLER
+  // -------------------------------
+  const handleClientSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -66,83 +43,99 @@ export default function LoginPage() {
       return;
     }
 
-    const clients = loadClients();
-
-    if (!clientIsNew) {
-      const existing = clients.find(
-        (c) => c.email.toLowerCase() === email.toLowerCase()
-      );
-
-      if (!existing || existing.password !== clientPassword) {
-        setError("Invalid email or password.");
-        return;
-      }
-
-      login({
-        name: existing.name,
-        email: existing.email,
-        role: "client",
-      });
-
-      router.push("/home");
-    } else {
+    if (clientIsNew) {
       if (!name.trim()) {
         setError("Please enter your full name.");
         return;
       }
       if (clientPassword.length < 4) {
-        setError("Password should be at least 4 characters.");
+        setError("Password must be at least 4 characters.");
         return;
       }
       if (clientPassword !== clientPasswordConfirm) {
         setError("Passwords do not match.");
         return;
       }
+    }
 
-      const existing = clients.find(
-        (c) => c.email.toLowerCase() === email.toLowerCase()
-      );
-      if (existing) {
-        setError("An account with this email already exists. Please login.");
-        setClientIsNew(false);
+    try {
+      const endpoint = clientIsNew ? "/api/auth/register" : "/api/auth/login";
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password: clientPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Login failed.");
         return;
       }
 
-      const newClient: ClientAccount = {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password: clientPassword,
-      };
-
-      const updated = [...clients, newClient];
-      saveClients(updated);
-
       login({
-        name: newClient.name,
-        email: newClient.email,
-        role: "client",
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
       });
 
       router.push("/home");
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
     }
   };
 
-  const handleAdminLogin = (e: FormEvent) => {
+  // -------------------------------
+  // ADMIN LOGIN HANDLER (API BASED)
+  // -------------------------------
+  const handleAdminLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (adminUsername !== ADMIN_USERNAME || adminPassword !== ADMIN_PASSWORD) {
-      setError("Invalid admin credentials.");
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      setError("Enter admin email and password.");
       return;
     }
 
-    login({
-      name: "Admin",
-      email: "admin@agentbazaar.local",
-      role: "admin",
-    });
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: adminEmail,
+          password: adminPassword,
+        }),
+      });
 
-    router.push("/home");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Invalid admin credentials.");
+        return;
+      }
+
+      // IMPORTANT: The admin must have role="admin" in Supabase.
+      if (data.role !== "admin") {
+        setError("You are not authorized as admin.");
+        return;
+      }
+
+      login({
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      });
+
+      router.push("/home");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
   };
 
   return (
@@ -185,6 +178,7 @@ export default function LoginPage() {
         </div>
       )}
 
+      {/* CLIENT FORM */}
       {mode === "client" && (
         <form onSubmit={handleClientSubmit} className="mt-4 space-y-4 text-sm">
           <label className="flex items-center gap-2 text-[11px] text-slate-300">
@@ -207,7 +201,7 @@ export default function LoginPage() {
               <label className="text-xs text-slate-300">Full Name</label>
               <input
                 type="text"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
                 placeholder="Adrian Rockefeller"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -219,7 +213,7 @@ export default function LoginPage() {
             <label className="text-xs text-slate-300">Email</label>
             <input
               type="email"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -230,7 +224,7 @@ export default function LoginPage() {
             <label className="text-xs text-slate-300">Password</label>
             <input
               type="password"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
               placeholder="••••••••"
               value={clientPassword}
               onChange={(e) => setClientPassword(e.target.value)}
@@ -242,7 +236,7 @@ export default function LoginPage() {
               <label className="text-xs text-slate-300">Confirm Password</label>
               <input
                 type="password"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
                 placeholder="Repeat your password"
                 value={clientPasswordConfirm}
                 onChange={(e) => setClientPasswordConfirm(e.target.value)}
@@ -259,16 +253,17 @@ export default function LoginPage() {
         </form>
       )}
 
+      {/* ADMIN FORM */}
       {mode === "admin" && (
         <form onSubmit={handleAdminLogin} className="mt-4 space-y-4 text-sm">
           <div className="space-y-1">
-            <label className="text-xs text-slate-300">Admin Username</label>
+            <label className="text-xs text-slate-300">Admin Email</label>
             <input
-              type="text"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
-              placeholder="admin"
-              value={adminUsername}
-              onChange={(e) => setAdminUsername(e.target.value)}
+              type="email"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
+              placeholder="admin@example.com"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
             />
           </div>
 
@@ -276,7 +271,7 @@ export default function LoginPage() {
             <label className="text-xs text-slate-300">Admin Password</label>
             <input
               type="password"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500"
               placeholder="••••••••"
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
@@ -289,11 +284,6 @@ export default function LoginPage() {
           >
             Login as Admin
           </button>
-
-          <p className="mt-2 text-[10px] text-slate-500">
-            Demo creds: username <span className="font-mono">{ADMIN_USERNAME}</span>{" "}
-            and password <span className="font-mono">{ADMIN_PASSWORD}</span>.
-          </p>
         </form>
       )}
     </section>
