@@ -1,4 +1,5 @@
 import { AuctionTheme } from "@/types";
+import { useAuth } from "@/components/AuthProvider";
 
 type Props = {
   auction: AuctionTheme;
@@ -15,6 +16,9 @@ export default function AuctionDetailHeader({
   fairnessWeight,
   showWeights = true,
 }: Props) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const total = donationWeight + profileWeight + fairnessWeight || 1;
   const wDonation = Math.round((donationWeight / total) * 100);
   const wProfile = Math.round((profileWeight / total) * 100);
@@ -35,7 +39,7 @@ export default function AuctionDetailHeader({
           </p>
         </div>
 
-        {showWeights && (
+        {showWeights && isAdmin && (
           <div className="mt-2 rounded-xl bg-slate-900/80 p-3 text-[11px] text-slate-200 md:mt-0">
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Current Scoring Weights
