@@ -11,6 +11,7 @@ import {
 type UserRole = "client" | "admin";
 
 type User = {
+  id: string;
   name: string;
   email: string;
   role: UserRole;
