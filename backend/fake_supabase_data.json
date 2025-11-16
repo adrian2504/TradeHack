@@ -1,0 +1,81 @@
+{
+  "auction": [
+    {
+      "auction_id": "auction_1",
+      "name": "Adrian's Rockefeller Tree",
+      "impact_area": "children, women, climate",
+      "min_donation": 400.0,
+      "starts_at": "2025-11-15T12:00:00Z",
+      "ends_at": "2025-11-16T12:00:00Z",
+      "status": "open",
+      "donation_weight": 0.3,
+      "profile_weight": 0.5,
+      "fairness_weight": 0.2,
+      "description": "Auction for naming rights on the giant tree."
+    }
+  ],
+  "bid": [
+    {
+      "bid_id": "bid_1",
+      "created_at": "2025-11-15T13:00:00Z",
+      "bid_amount": 400.0,
+      "user_id": "user_adrian",
+      "auction_id": "auction_1"
+    },
+    {
+      "bid_id": "bid_2",
+      "created_at": "2025-11-15T13:10:00Z",
+      "bid_amount": 1000.0,
+      "user_id": "user_charles",
+      "auction_id": "auction_1"
+    },
+    {
+      "bid_id": "bid_3",
+      "created_at": "2025-11-15T13:20:00Z",
+      "bid_amount": 750.0,
+      "user_id": "user_investor",
+      "auction_id": "auction_1"
+    }
+  ],
+  "user": [
+    {
+      "user_id": "user_adrian",
+      "name": "Adrian Dsouza",
+      "email": "adrian@example.com",
+      "philantrophy_score": 0,
+      "socialimpact_score": 0,
+      "affiliation": "Human rights lawyer",
+      "strategy": "balanced",
+      "donation": 15000.0,
+      "fairness_score": 0.0,
+      "composite_score": 0.0,
+      "password": "hashed"
+    },
+    {
+      "user_id": "user_charles",
+      "name": "Charles Dsouza",
+      "email": "charles@example.com",
+      "philantrophy_score": 0,
+      "socialimpact_score": 0,
+      "affiliation": "Tobacco factory owner",
+      "strategy": "cautious",
+      "donation": 80000.0,
+      "fairness_score": 0.0,
+      "composite_score": 0.0,
+      "password": "hashed"
+    },
+    {
+      "user_id": "user_investor",
+      "name": "Random Investor",
+      "email": "investor@example.com",
+      "philantrophy_score": 0,
+      "socialimpact_score": 0,
+      "affiliation": "Crypto fund manager",
+      "strategy": "greedy",
+      "donation": 120000.0,
+      "fairness_score": 0.0,
+      "composite_score": 0.0,
+      "password": "hashed"
+    }
+  ]
+}

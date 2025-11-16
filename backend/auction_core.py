@@ -1,23 +1,32 @@
+# auction_core.py
+
+from __future__ import annotations
+
 import os
 import re
 import json
 from typing import List, Dict, Any, Tuple, Optional
 
 from dotenv import load_dotenv
+
 try:
     from google import genai
 except ImportError:
     genai = None
 
-load_dotenv()
+Profile = Dict[str, Any]
 
+# ---------- Env + Gemini client ----------
+
+load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
 gemini_client: Optional["genai.Client"] = None
-
 if GEMINI_API_KEY and genai is not None:
     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+
+
+# ---------- Helpers ----------
 
 def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
@@ -38,7 +47,7 @@ def extract_json_from_text(text: str) -> Dict[str, Any]:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("No JSON object found")
 
-    json_str = cleaned[start : end + 1]
+    json_str = cleaned[start: end + 1]
     return json.loads(json_str)
 
 
@@ -102,8 +111,8 @@ def extract_donation_amount(text: str) -> float:
 
 
 def compute_social_score_rule_based(profile: Dict[str, Any]) -> float:
-    profession = profile["profession"].lower()
-    contrib = profile["social_contribution"].lower()
+    profession = profile.get("profession", "").lower()
+    contrib = profile.get("social_contribution", "").lower()
 
     score = 0.5
 
@@ -118,7 +127,7 @@ def compute_social_score_rule_based(profile: Dict[str, Any]) -> float:
         if kw in contrib:
             score += 0.05
 
-    donation = extract_donation_amount(profile["social_contribution"])
+    donation = extract_donation_amount(profile.get("social_contribution", ""))
     donation_bonus = clamp(donation / 10000.0, 0.0, 0.2)
     score += donation_bonus
 
@@ -136,18 +145,38 @@ def compute_social_scores_rule_based(
     return scores
 
 
+def _get_rag_context(name: str, rag_index: Optional[Dict[str, List[str]]]) -> str:
+    if not rag_index:
+        return ""
+    docs = rag_index.get(name, [])
+    if not docs:
+        return ""
+    return "\n\n".join(docs)
+
+
 def compute_social_score_gemini(
     profile: Dict[str, Any],
     client: "genai.Client",
+    model_name: str,
+    rag_index: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[float, str]:
+    name = profile.get("name", "")
+    rag_context = _get_rag_context(name, rag_index)
+    rag_block = ""
+    if rag_context:
+        rag_block = (
+            "\n\nExtra context from knowledge base (persona, history, prior actions):\n"
+            f"{rag_context}\n"
+        )
+
     prompt = f"""
 You are an evaluator that scores people based on positive social impact and ethical alignment.
 
 Profile:
-- Name: {profile["name"]}
-- Country: {profile["country"]}
-- Profession: {profile["profession"]}
-- Social contribution: {profile["social_contribution"]}
+- Name: {profile.get("name")}
+- Country: {profile.get("country")}
+- Profession: {profile.get("profession")}
+- Social contribution: {profile.get("social_contribution")}{rag_block}
 
 Scoring rules:
 - Harmful industries (e.g., tobacco, weapons, hard drugs, exploitative gambling) should receive lower scores.
@@ -166,7 +195,7 @@ The JSON MUST have this exact structure:
     """.strip()
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=model_name,
         contents=prompt,
     )
 
@@ -188,31 +217,57 @@ The JSON MUST have this exact structure:
 def compute_social_scores_gemini(
     profiles: List[Dict[str, Any]],
     client: "genai.Client",
+    model_name: str,
+    rag_index: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, Tuple[float, str]]:
     scores: Dict[str, Tuple[float, str]] = {}
     for p in profiles:
-        score, reason = compute_social_score_gemini(p, client)
+        score, reason = compute_social_score_gemini(p, client, model_name, rag_index=rag_index)
         scores[p["name"]] = (score, reason)
     return scores
+
+
+# ---------- Public API: rank_profiles ----------
 
 def rank_profiles(
     profiles: List[Dict[str, Any]],
     use_gemini: bool = True,
+    rag_index: Optional[Dict[str, List[str]]] = None,
+    weight_social: float = 0.7,
+    weight_money: float = 0.3,
+    model_name: str = "gemini-2.5-flash",
 ) -> Dict[str, Any]:
+    """
+    Core scoring API.
+
+    Args:
+        profiles: list of profiles; each must have 'name' and 'max_bid'.
+        use_gemini: if True and gemini_client is available, use Gemini; otherwise rule-based.
+        rag_index: optional {name: [doc1, doc2, ...]} to provide persona/context to Gemini.
+        weight_social: weight for social_score in final_score.
+        weight_money: weight for money_score in final_score.
+        model_name: Gemini model name to use.
+
+    Returns:
+        {
+          "ranking": [ ... ],
+          "winner": {...},
+          "social_mode": "gemini" | "rule-based",
+        }
+    """
     if not profiles:
         raise ValueError("No profiles provided")
 
     money_scores = compute_money_scores(profiles)
 
     if use_gemini and gemini_client is not None:
-        social_scores_raw = compute_social_scores_gemini(profiles, gemini_client)
+        social_scores_raw = compute_social_scores_gemini(
+            profiles, gemini_client, model_name, rag_index=rag_index
+        )
         social_mode = "gemini"
     else:
         social_scores_raw = compute_social_scores_rule_based(profiles)
         social_mode = "rule-based"
-
-    WEIGHT_SOCIAL = 0.7
-    WEIGHT_MONEY = 0.3
 
     results = []
     for p in profiles:
@@ -220,7 +275,7 @@ def rank_profiles(
         money_score = money_scores[name]
         social_score, reason = social_scores_raw[name]
 
-        final_score = WEIGHT_SOCIAL * social_score + WEIGHT_MONEY * money_score
+        final_score = weight_social * social_score + weight_money * money_score
 
         results.append(
             {
@@ -243,10 +298,11 @@ def rank_profiles(
     }
 
 
+# Optional standalone demo (can be deleted if you don't need it)
 if __name__ == "__main__":
-    profiles_demo = [
+    demo_profiles = [
         {
-            "name": "Adrian Dsouza",
+            "name": "Demo Adrian",
             "country": "United States",
             "start_bid": 50000,
             "max_bid": 100000,
@@ -257,7 +313,7 @@ if __name__ == "__main__":
             ),
         },
         {
-            "name": "Charles Dsouza",
+            "name": "Demo Charles",
             "country": "United States",
             "start_bid": 100000,
             "max_bid": 200000,
@@ -267,23 +323,13 @@ if __name__ == "__main__":
     ]
 
     use_gemini_flag = bool(gemini_client)
-
-    result = rank_profiles(profiles_demo, use_gemini=use_gemini_flag)
+    result = rank_profiles(
+        demo_profiles,
+        use_gemini=use_gemini_flag,
+        rag_index=None,
+        weight_social=0.7,
+        weight_money=0.3,
+    )
 
     print(f"Social scoring mode: {result['social_mode']}")
-    print("---- Winner ----")
-    print(f"Name: {result['winner']['name']}")
-    print(f"Final score: {result['winner']['final_score']}")
-    print(f"Money score: {result['winner']['money_score']}")
-    print(f"Social score: {result['winner']['social_score']}")
-    print(f"Reason: {result['winner']['social_reason']}")
-    print()
-
-    print("---- Full ranking ----")
-    for r in result["ranking"]:
-        print(
-            f"{r['name']}: final={r['final_score']}, "
-            f"money={r['money_score']}, social={r['social_score']}"
-        )
-        print(f"  Reason: {r['social_reason']}")
-        print()
+    print("Winner:", result["winner"]["name"], result["winner"]["final_score"])

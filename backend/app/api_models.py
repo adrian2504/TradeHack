@@ -11,7 +11,7 @@ class BidderProfile(BaseModel):
 
 class AuctionRequest(BaseModel):
     profiles: List[BidderProfile]
-        social_weight: float = Field(
+    social_weight: float = Field(
         default=0.7, 
         ge=0.0, 
         le=1.0, 
