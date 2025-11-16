@@ -4,15 +4,10 @@ import json
 from typing import List, Dict, Any, Tuple, Optional
 
 from dotenv import load_dotenv
-
-# Try to import Gemini SDK
 try:
     from google import genai
 except ImportError:
     genai = None
-
-
-# ----------------- ENV + CLIENT SETUP ----------------- #
 
 load_dotenv()
 
@@ -24,23 +19,13 @@ gemini_client: Optional["genai.Client"] = None
 if GEMINI_API_KEY and genai is not None:
     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
-
-# ----------------- UTILS ----------------- #
-
 def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
 
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
-    """
-    Try to robustly extract a JSON object from a model response.
-    - Strips markdown code fences if present.
-    - Finds the first '{' and last '}' and parses that substring.
-    Raises ValueError if parsing fails.
-    """
     cleaned = text.strip()
 
-    # Strip markdown fences like ```json ... ```
     if cleaned.startswith("```"):
         cleaned = cleaned.strip("`")
         if "{" in cleaned:
@@ -56,8 +41,6 @@ def extract_json_from_text(text: str) -> Dict[str, Any]:
     json_str = cleaned[start : end + 1]
     return json.loads(json_str)
 
-
-# ----------------- MONEY SCORE ----------------- #
 
 def compute_money_scores(profiles: List[Dict[str, Any]]) -> Dict[str, float]:
     max_bids = [p["max_bid"] for p in profiles]
@@ -75,8 +58,6 @@ def compute_money_scores(profiles: List[Dict[str, Any]]) -> Dict[str, float]:
 
     return scores
 
-
-# ----------------- RULE-BASED SOCIAL SCORE ----------------- #
 
 POSITIVE_KEYWORDS = [
     "hungry children",
@@ -109,10 +90,6 @@ NEGATIVE_PROFESSIONS = [
 
 
 def extract_donation_amount(text: str) -> float:
-    """
-    Very simple: look for numbers (with or without $),
-    take the largest as 'donation amount'.
-    """
     amounts = re.findall(r"\$?\s*([\d,]+)", text)
     vals = []
     for a in amounts:
@@ -159,16 +136,10 @@ def compute_social_scores_rule_based(
     return scores
 
 
-# ----------------- GEMINI SOCIAL SCORE ----------------- #
-
 def compute_social_score_gemini(
     profile: Dict[str, Any],
     client: "genai.Client",
 ) -> Tuple[float, str]:
-    """
-    Ask Gemini to evaluate the social impact of a profile.
-    Returns (score, reason).
-    """
     prompt = f"""
 You are an evaluator that scores people based on positive social impact and ethical alignment.
 
@@ -200,8 +171,6 @@ The JSON MUST have this exact structure:
     )
 
     raw_text = response.text.strip()
-    # Uncomment this if you want to debug:
-    # print("DEBUG GEMINI RAW:", raw_text)
 
     try:
         data = extract_json_from_text(raw_text)
@@ -225,9 +194,6 @@ def compute_social_scores_gemini(
         score, reason = compute_social_score_gemini(p, client)
         scores[p["name"]] = (score, reason)
     return scores
-
-
-# ----------------- RANKING LOGIC ----------------- #
 
 def rank_profiles(
     profiles: List[Dict[str, Any]],
@@ -276,8 +242,6 @@ def rank_profiles(
         "social_mode": social_mode,
     }
 
-
-# ----------------- DEMO MAIN ----------------- #
 
 if __name__ == "__main__":
     profiles_demo = [

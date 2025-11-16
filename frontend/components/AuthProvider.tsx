@@ -20,14 +20,14 @@ type AuthContextValue = {
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  isReady: boolean; 
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-
-  // load from localStorage so refresh keeps you logged in
+  const [isReady, setIsReady] = useState(false); 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("agentbazaar_user");
@@ -35,7 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(stored));
       }
     } catch {
-      // ignore
+    } finally {
+      setIsReady(true); 
     }
   }, []);
 
@@ -44,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem("agentbazaar_user", JSON.stringify(u));
     } catch {
-      // ignore
     }
   };
 
@@ -53,12 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.removeItem("agentbazaar_user");
     } catch {
-      // ignore
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isReady }}>
       {children}
     </AuthContext.Provider>
   );

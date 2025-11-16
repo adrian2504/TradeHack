@@ -1,7 +1,9 @@
 from typing import List, Any, Dict
 from fastapi import FastAPI
 from pydantic import BaseModel
-from auction_engine import rank_profiles
+
+from auction_core import rank_profiles
+
 
 class Profile(BaseModel):
     name: str
@@ -14,7 +16,7 @@ class Profile(BaseModel):
 class AuctionRequest(BaseModel):
     profiles: List[Profile]
     use_gemini: bool = True
-    social_weight: float = 0.7
+
 
 class RankedProfile(BaseModel):
     name: str
@@ -30,12 +32,23 @@ class AuctionResponse(BaseModel):
     winner: RankedProfile
     ranking: List[RankedProfile]
 
-app = FastAPI()
+app = FastAPI(title="AI Social Auction API")
+
+
+@app.get("/")
+def root():
+    return {"message": "AI Auction API is running. POST /run-auction to evaluate profiles."}
+
 
 @app.post("/run-auction", response_model=AuctionResponse)
 def run_auction(req: AuctionRequest):
     profiles_list = [p.model_dump() for p in req.profiles]
-    result = rank_profiles(profiles=profiles_list, social_weight=req.social_weight, use_gemini=req.use_gemini)
+
+    result = rank_profiles(
+        profiles=profiles_list,
+        use_gemini=req.use_gemini,
+    )
+
     return {
         "social_mode": result["social_mode"],
         "winner": result["winner"],

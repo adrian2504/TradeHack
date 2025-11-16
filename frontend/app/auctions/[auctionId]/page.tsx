@@ -1,21 +1,27 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AUCTIONS, MOCK_AGENTS, computeCompositeScore, MOCK_ROUNDS } from "@/lib/auctions";
+import {
+  AUCTIONS,
+  MOCK_AGENTS,
+  computeCompositeScore,
+  MOCK_ROUNDS,
+} from "@/lib/auctions";
 import AuctionDetailHeader from "@/components/AuctionDetailHeader";
 import AgentTable from "@/components/AgentTable";
 import ControlPanel from "@/components/ControlPanel";
 import MetricsPanel from "@/components/MetricsPanel";
 import NegotiationTimeline from "@/components/NegotiationTimeline";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AgentProfile, NegotiationRound } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function AuctionDetailPage() {
   const params = useParams();
   const slug = params.auctionId as string;
-  const { user } = useAuth();
 
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const auction = AUCTIONS.find((a) => a.slug === slug);
 
@@ -30,6 +36,17 @@ export default function AuctionDetailPage() {
   );
 
   const [rounds, setRounds] = useState<NegotiationRound[]>(MOCK_ROUNDS);
+
+  const [timeLeft, setTimeLeft] = useState(180); 
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const id = setInterval(() => {
+      setTimeLeft((t) => (t > 0 ? t - 1 : 0));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timeLeft]);
+
+  const biddingClosed = timeLeft <= 0;
 
   const agents: AgentProfile[] = useMemo(() => {
     if (!auction) return [];
@@ -48,14 +65,6 @@ export default function AuctionDetailPage() {
     })).sort((a, b) => b.compositeScore - a.compositeScore);
   }, [auction, donationWeight, profileWeight, fairnessWeight]);
 
-  if (!auction) {
-    return (
-      <div className="text-sm text-red-400">
-        Auction not found. Please return to the home page.
-      </div>
-    );
-  }
-
   const winner = agents[0];
 
   const handleRunSimulation = () => {
@@ -68,6 +77,19 @@ export default function AuctionDetailPage() {
     );
   };
 
+  if (!auction) {
+    return (
+      <div className="text-sm text-red-400">
+        Auction not found. Please return to the home page.
+      </div>
+    );
+  }
+
+  const minutes = Math.floor(timeLeft / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (timeLeft % 60).toString().padStart(2, "0");
+
   return (
     <div className="flex flex-col gap-5">
       <AuctionDetailHeader
@@ -76,57 +98,76 @@ export default function AuctionDetailPage() {
         profileWeight={profileWeight}
         fairnessWeight={fairnessWeight}
       />
-      
-       {/* NEW AUTH UI SECTION */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-        {user ? (
-          <span>
-            Logged in as{" "}
-            <span className="font-semibold text-emerald-300">
-              {user.name} ({user.role})
-            </span>
+
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px]">
+            {biddingClosed ? "Bidding Closed" : "Bidding Open"}
           </span>
-        ) : (
-          <a
-            href="/login"
-            className="text-emerald-300 underline underline-offset-2"
-          >
-            Login to participate
-          </a>
-        )}
+          {!biddingClosed && (
+            <span className="text-emerald-300">
+              Time left to bid:{" "}
+              <span className="font-semibold">
+                {minutes}:{seconds}
+              </span>
+            </span>
+          )}
+          {biddingClosed && winner && (
+            <span className="text-emerald-300">
+              Winner:{" "}
+              <span className="font-semibold">{winner.name}</span>
+            </span>
+          )}
+        </div>
 
-        {user?.role === "client" && (
-          <button className="rounded-xl bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400">
-            💰 Place Bid
-          </button>
-        )}
-
-        {user?.role === "admin" && (
-          <button className="rounded-xl bg-sky-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-sky-400">
-            🛠 Create Posting
-          </button>
+        {!isAdmin && (
+          <span className="text-[11px] text-slate-400">
+            You can place your bid while the timer is running. AI bidding
+            logic uses your impact profile behind the scenes.
+          </span>
         )}
       </div>
-      {/* END AUTH UI SECTION */}
-
 
       <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
         <div className="flex flex-col gap-4">
-          <ControlPanel
-            donationWeight={donationWeight}
-            profileWeight={profileWeight}
-            fairnessWeight={fairnessWeight}
-            setDonationWeight={setDonationWeight}
-            setProfileWeight={setProfileWeight}
-            setFairnessWeight={setFairnessWeight}
-            onRunSimulation={handleRunSimulation}
-          />
+          {isAdmin && (
+            <ControlPanel
+              donationWeight={donationWeight}
+              profileWeight={profileWeight}
+              fairnessWeight={fairnessWeight}
+              setDonationWeight={setDonationWeight}
+              setProfileWeight={setProfileWeight}
+              setFairnessWeight={setFairnessWeight}
+              onRunSimulation={handleRunSimulation}
+            />
+          )}
           <AgentTable agents={agents} />
         </div>
 
         <div className="flex flex-col gap-4">
-          <MetricsPanel auction={auction} winner={winner} />
-          <NegotiationTimeline rounds={rounds} agents={agents} />
+          {isAdmin && winner && (
+            <>
+              <MetricsPanel auction={auction} winner={winner} />
+              <NegotiationTimeline rounds={rounds} agents={agents} />
+            </>
+          )}
+
+          {!isAdmin && winner && biddingClosed && (
+            <section className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-xs">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                Winning Bidder
+              </div>
+              <div className="text-sm font-semibold text-slate-50">
+                {winner.name}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-300">
+                Composite score:{" "}
+                <span className="font-semibold">
+                  {winner.compositeScore.toFixed(2)}
+                </span>
+              </p>
+            </section>
+          )}
         </div>
       </div>
     </div>
