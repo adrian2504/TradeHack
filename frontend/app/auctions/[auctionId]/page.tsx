@@ -48,6 +48,38 @@ export default function AuctionDetailPage() {
     return () => clearInterval(id);
   }, [timeLeft]);
 
+  // track window size for full-screen confetti
+  useEffect(() => {
+    function handleResize() {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+
+    handleResize(); // initial
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // fetch AI / base agents from backend (Supabase -> /api/agents)
+  useEffect(() => {
+    async function loadAgents() {
+      try {
+        const data = await fetchLatestAgentsFromBackend();
+        // data should be in the same shape your table expects (id, name, donation or donationAmount, profile/fairness, etc.)
+        setBackendAgents(data as any[]);
+      } catch (err) {
+        console.error("Failed to load agents from backend", err);
+        setAgentsError("Failed to load agents from backend.");
+      } finally {
+        setAgentsLoading(false);
+      }
+    }
+
+    loadAgents();
+  }, []);
+
   // when a client logs in, create a dedicated bidder row for them (if not already present)
   useEffect(() => {
     if (!user || user.role !== "client") return;
@@ -72,10 +104,10 @@ export default function AuctionDetailPage() {
     });
   }, [user]);
 
-  // base agents = static AI bidders + all client-created bidders
+  // base agents = backend AI bidders + all client-created bidders
   const baseAgents = useMemo(
-    () => [...MOCK_AGENTS, ...clientAgents],
-    [clientAgents]
+    () => [...backendAgents, ...clientAgents],
+    [backendAgents, clientAgents]
   );
 
   // Which agent row belongs to the currently logged-in client?
@@ -170,19 +202,12 @@ export default function AuctionDetailPage() {
 
   const winner: any = agents[0];
 
-  // measure winner box size when state changes
-  // useEffect(() => {
-  //   if (!winnerBoxRef.current) return;
-  //   const rect = winnerBoxRef.current.getBoundingClientRect();
-  //   setConfettiSize({ width: rect.width, height: rect.height });
-  // }, [biddingClosed]);
-
   // show confetti once when bidding closes
   useEffect(() => {
     if (!biddingClosed || !winner) return;
 
     setShowConfetti(true);
-    const t = setTimeout(() => setShowConfetti(false), 4000); // 4s
+    const t = setTimeout(() => setShowConfetti(false), 10000); // 10s
 
     return () => clearTimeout(t);
   }, [biddingClosed, winner]);
@@ -259,13 +284,17 @@ export default function AuctionDetailPage() {
           )}
         </div>
 
-        {!isAdmin && (
-          <span className="text-[11px] text-slate-400">
-            You can place your bid while the timer is running. AI bidding logic
-            uses your impact profile behind the scenes.
-          </span>
+        {/* agents loading / error banners */}
+        {agentsLoading && (
+          <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+            Loading agents from backend…
+          </div>
         )}
-      </div>
+        {agentsError && !agentsLoading && (
+          <div className="rounded-md border border-red-700 bg-red-950 px-3 py-2 text-xs text-red-200">
+            {agentsError}
+          </div>
+        )}
 
       <div className="grid gap-5 lg:grid-cols-[2fr,1.4fr]">
         {/* LEFT SIDE */}
@@ -315,12 +344,24 @@ export default function AuctionDetailPage() {
           <AgentTable agents={agents} showScores={isAdmin} />
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="flex flex-col gap-4">
-          {isAdmin && winner && (
+        {/* BOTTOM WINNER BOX */}
+        <section className="relative mt-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-6 text-center text-sm overflow-hidden">
+          {!winner ? (
+            <p className="text-xs text-slate-400">
+              Waiting for bidders to join this auction.
+            </p>
+          ) : !biddingClosed ? (
             <>
-              <MetricsPanel auction={auction} winner={winner} />
-              <NegotiationTimeline rounds={rounds} agents={agents as any[]} />
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                Winner to be announced
+              </div>
+              <div className="text-xl md:text-2xl font-semibold text-emerald-300">
+                Winner to be announced in {minutes}:{seconds}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Leaderboard is still moving. Final winner will be locked when
+                the timer hits zero.
+              </p>
             </>
           )}
             {!isAdmin && !biddingClosed && (
@@ -349,65 +390,6 @@ export default function AuctionDetailPage() {
 
         </div>
       </div>
-
-      {/* BOTTOM WINNER BOX WITH CONFETTI */}
-      <section
-        ref={winnerBoxRef}
-        className="relative mt-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-6 text-center text-sm overflow-hidden"
-      >
-        {/* Confetti only inside this box */}
-        {showConfetti && (
-          <Confetti
-            width={window.innerWidth}
-            height={window.innerHeight}
-            recycle={false}
-            numberOfPieces={400}
-          />
-          )}
-
-        {!winner ? (
-          <p className="text-xs text-slate-400">
-            Waiting for bidders to join this auction.
-          </p>
-        ) : !biddingClosed ? (
-          <>
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-              Winner to be announced
-            </div>
-            <div className="text-xl md:text-2xl font-semibold text-emerald-300">
-              Winner to be announced in {minutes}:{seconds}
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Leaderboard is still moving. Final winner will be locked when the
-              timer hits zero.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
-              🏆 Winning Bidder
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-emerald-400">
-              {winner.displayName || winner.name}
-            </div>
-            <div className="mt-3 text-xs text-slate-300">
-              Final donation:{" "}
-              <span className="font-semibold">
-                {currencyFmt.format(toNumber(winner.donation))}
-              </span>
-              {winner.compositeScore != null && (
-                <>
-                  {" "}
-                  • Composite score:{" "}
-                  <span className="font-semibold">
-                    {winner.compositeScore.toFixed(2)}
-                  </span>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
+    </>
   );
 }
