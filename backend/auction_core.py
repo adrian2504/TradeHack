@@ -90,10 +90,6 @@ NEGATIVE_PROFESSIONS = [
 
 
 def extract_donation_amount(text: str) -> float:
-    """
-    Very simple: look for numbers (with or without $),
-    take the largest as 'donation amount'.
-    """
     amounts = re.findall(r"\$?\s*([\d,]+)", text)
     vals = []
     for a in amounts:
@@ -144,10 +140,6 @@ def compute_social_score_gemini(
     profile: Dict[str, Any],
     client: "genai.Client",
 ) -> Tuple[float, str]:
-    """
-    Ask Gemini to evaluate the social impact of a profile.
-    Returns (score, reason).
-    """
     prompt = f"""
 You are an evaluator that scores people based on positive social impact and ethical alignment.
 
