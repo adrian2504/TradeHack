@@ -1,0 +1,16 @@
+{
+  "scores": [
+    {
+      "name": "Random Investor",
+      "edge_fairness_score": 0.8871999979019165
+    },
+    {
+      "name": "Adrian Dsouza",
+      "edge_fairness_score": 0.9212000370025635
+    },
+    {
+      "name": "Charles Dsouza",
+      "edge_fairness_score": 0.16820000112056732
+    }
+  ]
+}

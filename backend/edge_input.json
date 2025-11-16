@@ -1,0 +1,124 @@
+{
+  "social_mode": "gemini",
+  "final_winner": {
+    "name": "Random Investor",
+    "final_score": 0.916,
+    "money_score": 1.0,
+    "social_score": 0.88,
+    "bid": 62591.02,
+    "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+  },
+  "rounds": [
+    {
+      "round_index": 1,
+      "ranking": [
+        {
+          "name": "Random Investor",
+          "final_score": 0.93,
+          "money_score": 1.0,
+          "social_score": 0.9,
+          "bid": 20000.0,
+          "social_reason": "The investor made significant positive contributions by funding climate-tech startups and supporting education for girls. These actions directly address environmental improvement and empower a vulnerable group, aligning strongly with positive social impact criteria."
+        },
+        {
+          "name": "Adrian Dsouza",
+          "final_score": 0.7,
+          "money_score": 0.0,
+          "social_score": 1.0,
+          "bid": 400.0,
+          "social_reason": "Adrian Dsouza demonstrates strong ethical alignment and positive social impact by fighting for women's rights and donating to hungry children. These actions directly support vulnerable groups and human rights, aligning perfectly with the scoring criteria."
+        },
+        {
+          "name": "Charles Dsouza",
+          "final_score": 0.357,
+          "money_score": 0.49,
+          "social_score": 0.3,
+          "bid": 10000.0,
+          "social_reason": "His primary profession as a tobacco factory owner is explicitly deemed harmful, significantly lowering his score due to its negative public health impact. While the $1000 donation for tree planting is a positive environmental contribution, it does not sufficiently offset the systemic harm from his core business."
+        }
+      ],
+      "winner": {
+        "name": "Random Investor",
+        "final_score": 0.93,
+        "money_score": 1.0,
+        "social_score": 0.9,
+        "bid": 20000.0,
+        "social_reason": "The investor made significant positive contributions by funding climate-tech startups and supporting education for girls. These actions directly address environmental improvement and empower a vulnerable group, aligning strongly with positive social impact criteria."
+      }
+    },
+    {
+      "round_index": 2,
+      "ranking": [
+        {
+          "name": "Random Investor",
+          "final_score": 0.93,
+          "money_score": 1.0,
+          "social_score": 0.9,
+          "bid": 41664.75,
+          "social_reason": "The investor shows strong positive social impact through investments in climate technology, contributing to environmental sustainability. Sponsoring a coding school for girls further aligns with ethical principles by supporting education and empowering a vulnerable group. These direct, impactful contributions significantly elevate the score."
+        },
+        {
+          "name": "Adrian Dsouza",
+          "final_score": 0.665,
+          "money_score": 0.0,
+          "social_score": 0.95,
+          "bid": 4099.42,
+          "social_reason": "Adrian's profession as a human rights lawyer is highly ethically aligned. Their contributions directly support vulnerable children and women, demonstrating significant positive social impact through both financial aid and direct advocacy for human rights."
+        },
+        {
+          "name": "Charles Dsouza",
+          "final_score": 0.162,
+          "money_score": 0.422,
+          "social_score": 0.05,
+          "bid": 19940.06,
+          "social_reason": "His primary profession as a tobacco factory owner contributes to a harmful industry with widespread negative public health impacts. While his $1000 donation for tree planting is a positive environmental contribution, it is overshadowed by the ethical concerns and scale of harm associated with his core business."
+        }
+      ],
+      "winner": {
+        "name": "Random Investor",
+        "final_score": 0.93,
+        "money_score": 1.0,
+        "social_score": 0.9,
+        "bid": 41664.75,
+        "social_reason": "The investor shows strong positive social impact through investments in climate technology, contributing to environmental sustainability. Sponsoring a coding school for girls further aligns with ethical principles by supporting education and empowering a vulnerable group. These direct, impactful contributions significantly elevate the score."
+      }
+    },
+    {
+      "round_index": 3,
+      "ranking": [
+        {
+          "name": "Random Investor",
+          "final_score": 0.916,
+          "money_score": 1.0,
+          "social_score": 0.88,
+          "bid": 62591.02,
+          "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+        },
+        {
+          "name": "Adrian Dsouza",
+          "final_score": 0.665,
+          "money_score": 0.0,
+          "social_score": 0.95,
+          "bid": 6425.91,
+          "social_reason": "Adrian's profession as a human rights lawyer, coupled with his donation for hungry children and advocacy for women's rights in court, demonstrates strong ethical alignment and significant positive social impact, directly supporting vulnerable groups and human rights."
+        },
+        {
+          "name": "Charles Dsouza",
+          "final_score": 0.171,
+          "money_score": 0.453,
+          "social_score": 0.05,
+          "bid": 31887.04,
+          "social_reason": "As a tobacco factory owner, Charles Dsouza's profession is inherently harmful and ethically misaligned, causing widespread negative social impact. While his $1000 donation for planting trees is a positive environmental contribution, its beneficial impact is significantly outweighed by the immense harm perpetuated by his core business."
+        }
+      ],
+      "winner": {
+        "name": "Random Investor",
+        "final_score": 0.916,
+        "money_score": 1.0,
+        "social_score": 0.88,
+        "bid": 62591.02,
+        "social_reason": "The individual's profession is ethically neutral; however, their significant investments in climate-tech and sponsorship of a coding school for girls demonstrate strong positive social impact. These actions directly support environmental sustainability, education, and empower a vulnerable group."
+      }
+    }
+  ]
+}
